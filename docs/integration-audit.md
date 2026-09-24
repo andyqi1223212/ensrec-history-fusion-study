@@ -22,9 +22,39 @@ The sequence feature uses `num_placeholder_tokens: 2`; `add_placeholder_tokens` 
 
 If scalar extraction is added at cell 8, the next code path builds `item_to_text` keyed by actual IDs 1–12,101. Cell 13 runs `[item_to_text[i] for i in range(len(item_to_text))]`, beginning with absent key 0; the second failure is `KeyError(0)`. The audit reproduces this path too. The cell numbers refer to the notebook's code-cell order; the expressions above identify the failure sites if notebook display numbering changes. No SentenceT5 vector file exists here, so no generated table's row semantics have been verified.
 
-A minimal research-side repair candidate is to sort explicit `(metadata_id, text)` pairs by metadata ID, encode each text once, and prepend two zero vectors. The raw-data evidence suggests metadata ID `m` belongs at model row `m+1`, because the matching sequence ID is `m-1` and sequence preprocessing maps that to `m+1`. This is a proposal only; no notebook repair or row remapping has been applied.
+The candidate mapping is to sort explicit `(metadata_id, text)` pairs by metadata ID, encode each text once, and prepend two zero vectors. The raw-data evidence suggests metadata ID `m` belongs at model row `m+1`, because the matching sequence ID is `m-1` and sequence preprocessing maps that to `m+1`. The research-side builder below implements this mapping; it does not modify the upstream notebook. Real XXL encoding is still unrun.
 
-Before training, generate a manifest with one `(row, metadata_id, text_hash)` record per real item. Gate the table on: IDs 1–12,101 each appearing exactly once; rows 2–12,102 following `metadata_id + 1`; rows 0 and 1 exactly matching the placeholder contract; expected shape (12,103 × 768 for the configured table); all finite values; and evaluation/test first-item text mapping passing for every event. Check the manifest and tensor together; tensor shape alone cannot prove row meaning.
+## Frozen Text table builder
+
+The upstream notebook's normal path loads `sentence-transformers/sentence-t5-xxl` and calls `model.encode(sentences, convert_to_tensor=True)`. The [official model card](https://huggingface.co/sentence-transformers/sentence-t5-xxl) specifies 768-dimensional sentence vectors; the Text-only config's first item-text projection also declares `input_dim: 768`. Its output filename is `sentence-t5-xxl_item_embeddings.pt`, while the Text config default expects `sentence-t5-xxl_embeddings.pt`.
+
+The study-side `scripts/frozen_text_embeddings.py` does not edit the author notebook. It reads raw `(metadata_id, text)` pairs, requires metadata IDs to be exactly `1..N`, sorts by ID, encodes in batches, writes zero rows 0–1, and places metadata ID `m` at tensor row `m+1`. The JSON manifest stores `(row, metadata_id, source_text_hash)` for each real item and records the source-order contract; it contains no item text. After generation it checks every current item text hash against the manifest and scans training/evaluation/testing events, verifying first-item hashes against the manifest. Each split currently verifies 22,363 events and 7,563 unique first-item IDs (sequence IDs 0–12,095); event evidence directly covers only those identities. The remaining IDs are covered by full-catalog source-text hashes and the explicit sorted-ID row contract, not by event observations.
+
+Run download-free structural and data checks with a deterministic fake encoder (dimension 8 is only a smoke fixture):
+
+```bash
+python scripts/frozen_text_embeddings.py build \
+  --data-dir /path/to/EnsRec/data/beauty \
+  --output /tmp/beauty-fake.pt \
+  --manifest /tmp/beauty-fake-manifest.json \
+  --encoder fake --dimension 8
+python scripts/frozen_text_embeddings.py validate \
+  --data-dir /path/to/EnsRec/data/beauty \
+  --embeddings /tmp/beauty-fake.pt \
+  --manifest /tmp/beauty-fake-manifest.json
+```
+
+For real embeddings, install `sentence-transformers` in the complete model environment and run:
+
+```bash
+python scripts/frozen_text_embeddings.py build \
+  --data-dir /path/to/EnsRec/data/beauty \
+  --output /path/to/EnsRec/data/beauty/sentence-t5-xxl_embeddings.pt \
+  --manifest /path/to/EnsRec/data/beauty/sentence-t5-xxl_embeddings.manifest.json \
+  --encoder sentence-t5-xxl --dimension 768 --batch-size 8 --device cuda
+```
+
+The real XXL model was not loaded here. Keep both generated artifacts outside Git. Re-run `validate` before training; it checks tensor shape/dimension/finiteness, exact zero placeholder rows, complete manifest coverage/order, current item-text hashes for every catalog ID, and first-item event hashes.
 
 ## Checkpoint selection and export call chain
 
