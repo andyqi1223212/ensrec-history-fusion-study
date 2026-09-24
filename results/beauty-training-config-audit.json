@@ -1,0 +1,284 @@
+{
+  "status": "source-aware static overlay; Hydra composition not executed",
+  "cases": {
+    "id_only": {
+      "experiment_source": "configs/experiment/id_only/train_beauty.yaml",
+      "experiment_defaults": [
+        {
+          "override /trainer": "ddp"
+        },
+        {
+          "override /model": "id_only"
+        },
+        {
+          "override /data_loading": "ids_train"
+        },
+        {
+          "override /logger": "csv"
+        },
+        {
+          "override /eval": "retrieval"
+        },
+        {
+          "override /loss": "in_batch_contrastive_loss"
+        },
+        {
+          "override /optim": "adamw"
+        }
+      ],
+      "base_model_source": "configs/model/id_only.yaml",
+      "fields": {
+        "_target_": {
+          "value": "src.experimental.modules.id_text_module.IdTextModule",
+          "source": "configs/model/id_only.yaml"
+        },
+        "id_loss_weight": {
+          "value": 1.0,
+          "source": "configs/model/id_only.yaml"
+        },
+        "text_loss_weight": {
+          "value": 0.0,
+          "source": "configs/model/id_only.yaml"
+        },
+        "full_batch_id_negatives": {
+          "value": true,
+          "source": "configs/model/id_only.yaml"
+        },
+        "full_batch_text_negatives": {
+          "value": null,
+          "source": null
+        },
+        "text_loss_function._target_": {
+          "value": null,
+          "source": null
+        },
+        "text_loss_function.normalize": {
+          "value": null,
+          "source": null
+        },
+        "text_loss_function.contrastive_tau": {
+          "value": null,
+          "source": null
+        },
+        "d_model": {
+          "value": 128,
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        },
+        "monitor": {
+          "value": "val/id_cosine/recall@10",
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        },
+        "save_top_k": {
+          "value": 1,
+          "source": "configs/callbacks/model_checkpoint.yaml"
+        },
+        "mode": {
+          "value": "max",
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        },
+        "every_n_train_steps": {
+          "value": 2001,
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        },
+        "max_steps": {
+          "value": 200000,
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        },
+        "val_check_interval": {
+          "value": 2000,
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        },
+        "trainer_group": {
+          "value": "ddp",
+          "source": "configs/experiment/id_only/train_beauty.yaml"
+        }
+      }
+    },
+    "text_only": {
+      "experiment_source": "configs/experiment/text_only/train_beauty.yaml",
+      "experiment_defaults": [
+        {
+          "override /trainer": "ddp"
+        },
+        {
+          "override /model": "text_only"
+        },
+        {
+          "override /data_loading": "ids_train"
+        },
+        {
+          "override /logger": "csv"
+        },
+        {
+          "override /eval": "retrieval"
+        },
+        {
+          "override /loss": "in_batch_contrastive_loss"
+        },
+        {
+          "override /optim": "adamw"
+        }
+      ],
+      "base_model_source": "configs/model/text_only.yaml",
+      "fields": {
+        "_target_": {
+          "value": "src.experimental.modules.id_text_module.IdTextModule",
+          "source": "configs/model/text_only.yaml"
+        },
+        "id_loss_weight": {
+          "value": 0.0,
+          "source": "configs/model/text_only.yaml"
+        },
+        "text_loss_weight": {
+          "value": 1.0,
+          "source": "configs/model/text_only.yaml"
+        },
+        "full_batch_id_negatives": {
+          "value": null,
+          "source": null
+        },
+        "full_batch_text_negatives": {
+          "value": true,
+          "source": "configs/model/text_only.yaml"
+        },
+        "text_loss_function._target_": {
+          "value": "src.components.loss_functions.FullBatchCrossEntropyLoss",
+          "source": "configs/model/text_only.yaml"
+        },
+        "text_loss_function.normalize": {
+          "value": true,
+          "source": "configs/model/text_only.yaml"
+        },
+        "text_loss_function.contrastive_tau": {
+          "value": 0.07,
+          "source": "configs/model/text_only.yaml"
+        },
+        "d_model": {
+          "value": 128,
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        },
+        "monitor": {
+          "value": "val/text_cosine/recall@10",
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        },
+        "save_top_k": {
+          "value": 1,
+          "source": "configs/callbacks/model_checkpoint.yaml"
+        },
+        "mode": {
+          "value": "max",
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        },
+        "every_n_train_steps": {
+          "value": 2001,
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        },
+        "max_steps": {
+          "value": 200000,
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        },
+        "val_check_interval": {
+          "value": 2000,
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        },
+        "trainer_group": {
+          "value": "ddp",
+          "source": "configs/experiment/text_only/train_beauty.yaml"
+        }
+      }
+    },
+    "text_only_ablate_negatives": {
+      "experiment_source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml",
+      "experiment_defaults": [
+        {
+          "override /trainer": "ddp"
+        },
+        {
+          "override /model": "text_only"
+        },
+        {
+          "override /data_loading": "ids_train"
+        },
+        {
+          "override /logger": "csv"
+        },
+        {
+          "override /eval": "retrieval"
+        },
+        {
+          "override /loss": "in_batch_contrastive_loss"
+        },
+        {
+          "override /optim": "adamw"
+        }
+      ],
+      "base_model_source": "configs/model/text_only.yaml",
+      "fields": {
+        "_target_": {
+          "value": "src.experimental.modules.id_text_module.IdTextModule",
+          "source": "configs/model/text_only.yaml"
+        },
+        "id_loss_weight": {
+          "value": 0.0,
+          "source": "configs/model/text_only.yaml"
+        },
+        "text_loss_weight": {
+          "value": 1.0,
+          "source": "configs/model/text_only.yaml"
+        },
+        "full_batch_id_negatives": {
+          "value": null,
+          "source": null
+        },
+        "full_batch_text_negatives": {
+          "value": false,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "text_loss_function._target_": {
+          "value": "src.components.loss_functions.InBatchContrastiveLoss",
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "text_loss_function.normalize": {
+          "value": true,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "text_loss_function.contrastive_tau": {
+          "value": 0.07,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "d_model": {
+          "value": 128,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "monitor": {
+          "value": "val/text_cosine/recall@10",
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "save_top_k": {
+          "value": 1,
+          "source": "configs/callbacks/model_checkpoint.yaml"
+        },
+        "mode": {
+          "value": "max",
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "every_n_train_steps": {
+          "value": 2001,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "max_steps": {
+          "value": 200000,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "val_check_interval": {
+          "value": 2000,
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        },
+        "trainer_group": {
+          "value": "ddp",
+          "source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml"
+        }
+      }
+    }
+  }
+}
