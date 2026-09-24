@@ -26,8 +26,8 @@ def load_split(id_dir: Path, text_dir: Path, split: str):
     result = {
         "id_users": read(id_dir, f"{split}_user_embeddings.pt"),
         "text_users": read(text_dir, f"{split}_user_embeddings.pt"),
-        "id_items": read(id_dir, "item_embeddings.pt"),
-        "text_items": read(text_dir, "item_embeddings.pt"),
+        "id_items": read(id_dir, f"{split}_item_embeddings.pt"),
+        "text_items": read(text_dir, f"{split}_item_embeddings.pt"),
         "labels": read(id_dir, f"{split}_user_labels.pt").astype(np.int64),
         "lengths": read(id_dir, f"{split}_history_lengths.pt").astype(np.int64),
         "ids": read(id_dir, f"{split}_user_ids.pt").astype(np.int64),
@@ -113,11 +113,15 @@ def comparison(id_rank, text_rank, fused_rank, mask):
     added = int((~id_hit & fused_hit & mask).sum())
     lost = int((id_hit & ~fused_hit & mask).sum())
     n = int(mask.sum())
+    text_only_hits = int((~id_hit & text_hit & mask).sum())
+    text_only_recovered = int((~id_hit & text_hit & fused_hit & mask).sum())
     return {
         "id": metrics(id_rank, mask), "text": metrics(text_rank, mask),
         "fusion": metrics(fused_rank, mask),
-        "text_only_hits": int((~id_hit & text_hit & mask).sum()),
-        "text_only_recovered": int((~id_hit & text_hit & fused_hit & mask).sum()),
+        "text_only_hits": text_only_hits,
+        "text_only_recovered": text_only_recovered,
+        "text_only_recovery_rate": (text_only_recovered / text_only_hits
+                                    if text_only_hits else None),
         "added_hits": added, "lost_hits": lost, "net_hits": added - lost,
         "recall_delta_vs_id": (added - lost) / n,
     }
@@ -132,6 +136,9 @@ def choose_weight(ranks_by_weight, mask):
 
 
 def analyze(validation, test):
+    for route in ("id_items", "text_items"):
+        if not np.array_equal(validation[route], test[route]):
+            raise ValueError(f"Validation/test {route} differ; candidate table changed")
     val_pred = predictions(validation)
     val_rank = {w: ranks(p, validation["labels"]) for w, p in val_pred.items()}
     val_all = np.ones(len(validation["labels"]), dtype=bool)

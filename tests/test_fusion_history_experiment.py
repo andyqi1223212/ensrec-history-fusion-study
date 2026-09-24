@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -32,12 +33,33 @@ class FusionHistoryExperimentTest(unittest.TestCase):
 
         validation = split([2, 3, 4, 5])
         test = split([2, 3, 4, 5])
+        test["id_items"] = validation["id_items"].copy()
+        test["text_items"] = validation["text_items"].copy()
         first, _ = analyze(validation, test)
         altered = {**test, "labels": np.array([5, 4, 3, 2])}
         second, _ = analyze(validation, altered)
         self.assertEqual(first["protocol"]["selected_on_validation"],
                          second["protocol"]["selected_on_validation"])
 
+    def test_candidate_tables_must_match_between_splits(self):
+        rng = np.random.default_rng(23)
+
+        def split():
+            return {"id_users": rng.normal(size=(4, 3)),
+                    "text_users": rng.normal(size=(4, 3)),
+                    "id_items": rng.normal(size=(12, 3)),
+                    "text_items": rng.normal(size=(12, 3)),
+                    "labels": np.array([2, 3, 4, 5]),
+                    "lengths": np.array([1, 1, 3, 3]), "ids": np.arange(4)}
+
+        validation, test = split(), split()
+        test["id_items"] = validation["id_items"].copy()
+        test["text_items"] = validation["text_items"].copy()
+        test["text_items"][0, 0] += 1
+        with self.assertRaisesRegex(ValueError, "candidate table changed"):
+            analyze(validation, test)
+
+    @unittest.skipUnless(importlib.util.find_spec("torch"), "PyTorch is needed to read .pt exports")
     def test_misaligned_labels_are_rejected(self):
         import torch
 
@@ -47,7 +69,7 @@ class FusionHistoryExperimentTest(unittest.TestCase):
             right.mkdir()
             for directory in (left, right):
                 torch.save(torch.ones(2, 3), directory / "val_user_embeddings.pt")
-                torch.save(torch.ones(12, 3), directory / "item_embeddings.pt")
+                torch.save(torch.ones(12, 3), directory / "val_item_embeddings.pt")
                 torch.save(torch.tensor([1, 2]), directory / "val_history_lengths.pt")
                 torch.save(torch.tensor([0, 1]), directory / "val_user_ids.pt")
             torch.save(torch.tensor([2, 3]), left / "val_user_labels.pt")

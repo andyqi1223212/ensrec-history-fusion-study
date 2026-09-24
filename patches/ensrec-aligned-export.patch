@@ -116,7 +116,7 @@ index 49451dc..1ba7e03 100644
          loss_dict = {
              "test/loss": self.test_loss,
              "test/fused_loss": self.test_fused_loss,
-@@ -1218,6 +1214,41 @@ class IdTextModule(LightningModule):
+@@ -1218,6 +1214,44 @@ class IdTextModule(LightningModule):
          self.log_dict(loss_dict, sync_dist=True, prog_bar=True, logger=True)
          self.log_metrics("test")
  
@@ -147,7 +147,10 @@ index 49451dc..1ba7e03 100644
 +            raise RuntimeError(f"{split} labels do not match exported user IDs")
 +        torch.save(torch.stack([users[i].cpu() for i in range(len(users))]),
 +                   f"{self.embeddings_save_path}/{split}_user_embeddings.pt")
-+        torch.save(candidates.cpu(), f"{self.embeddings_save_path}/item_embeddings.pt")
++        torch.save(candidates.cpu(), f"{self.embeddings_save_path}/{split}_item_embeddings.pt")
++        # Preserve the upstream notebook's test export filename.
++        if split == "test":
++            torch.save(candidates.cpu(), f"{self.embeddings_save_path}/item_embeddings.pt")
 +        torch.save(torch.tensor([self.saved_user_lengths[i] for i in range(len(users))]),
 +                   f"{self.embeddings_save_path}/{split}_history_lengths.pt")
 +        torch.save(torch.arange(len(users)), f"{self.embeddings_save_path}/{split}_user_ids.pt")

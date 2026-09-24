@@ -19,7 +19,7 @@ For the same next-item events and candidate catalog, compare ID-only, Text-only,
 | `docs/config-audit.md` | Traces that configuration issue to the active Text loss branch. |
 | `results/beauty-history-lengths.json` | A real input-data audit, not a model result. |
 
-This repository contains the study's scripts, tests, aggregate audit, and integration patches. It does not contain the upstream training code, downloaded data, checkpoints, text embeddings, or private learning notes. The upstream code is MIT licensed; follow its license when applying the patches.
+This repository contains the study's scripts, tests, aggregate audit, and integration patches. It does not contain the upstream training code, downloaded data, checkpoints, text embeddings, or private learning notes. Candidate tables are exported separately as `val_item_embeddings.pt` and `test_item_embeddings.pt`; the evaluator checks that each route's validation and test candidate matrices match. The original `item_embeddings.pt` test export is also retained for compatibility with the upstream notebook. ID and Text candidate rows are assumed to follow the upstream shared item-ID mapping; this export does not include a separate item-ID sidecar, so cross-route row semantics still depend on that mapping. The upstream code is MIT licensed; follow its license when applying the patches.
 
 ## Reproduce the current checks
 

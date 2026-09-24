@@ -6,7 +6,7 @@ Text-only may retrieve a next item that ID-only misses even when Text-only has l
 
 ## Fair comparison
 
-Train ID-only and Text-only independently. Each route uses its own validation Recall@10 to select its checkpoint. Export vectors for the same validation and test events. Require identical event IDs, labels, history lengths, and candidate row counts. All scoring uses the same full item table.
+Train ID-only and Text-only independently. Each route uses its own validation Recall@10 to select its checkpoint. Export vectors for the same validation and test events. Require identical event IDs, labels, and history lengths across routes, and require each route's validation/test candidate matrices to match. ID/Text candidate rows are assumed to follow the upstream shared item-ID mapping; the export does not include an item-ID sidecar. All scoring uses the full item table.
 
 The paper's normalized concatenation ranks items by `ID cosine + Text cosine`; this study writes it as `alpha * ID cosine + (1-alpha) * Text cosine`, with `alpha=0.5` giving the same ordering. Evaluate alpha on the grid 0.0, 0.1, …, 1.0. Choose the global alpha by validation Recall@10. Choose the short/long threshold from validation history lengths to balance group sizes, then choose one alpha per group using validation Recall@10. Break ties toward 0.5. Never route an event using whether either model actually hit its target.
 
