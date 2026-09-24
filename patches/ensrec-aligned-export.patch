@@ -1,0 +1,199 @@
+diff --git a/configs/train.yaml b/configs/train.yaml
+index 4c7a827..0d7581b 100644
+--- a/configs/train.yaml
++++ b/configs/train.yaml
+@@ -38,6 +38,9 @@ train: True
+ # lightning chooses best weights based on the metric specified in checkpoint callback
+ test: True
+ 
++# Export aligned validation vectors from the selected checkpoint after testing.
++export_validation_embeddings: False
++
+ # simply provide checkpoint path to resume training
+ ckpt_path: null
+ 
+diff --git a/src/experimental/modules/id_text_module.py b/src/experimental/modules/id_text_module.py
+index 49451dc..1ba7e03 100644
+--- a/src/experimental/modules/id_text_module.py
++++ b/src/experimental/modules/id_text_module.py
+@@ -304,6 +304,9 @@ class IdTextModule(LightningModule):
+         self.save_user_labels = save_user_labels
+         if self.save_user_labels:
+             self.user_ids_to_labels = {}
++        # Enabled only for the final, best-checkpoint validation pass in train.py.
++        self.export_validation_embeddings = False
++        self.saved_user_lengths = {}
+ 
+     def _instantiate_text_model(self):
+         """Freeze the model parameters."""
+@@ -892,17 +895,26 @@ class IdTextModule(LightningModule):
+         ) = self.model_step(batch)
+ 
+         label_data = batch[1]
+-        labels = label_data.item_ids.tolist()  # NOTE: need to put these in right format
++        labels = label_data.item_ids.reshape(-1).tolist()
+ 
+-        if self.save_embeddings and self.trainer.testing:
++        exporting = self.trainer.testing or (
++            self.trainer.validating and self.export_validation_embeddings
++        )
++        if self.save_embeddings and exporting:
+             user_ids = torch.tensor(batch[0].user_id_list).to(self.device).flatten()
++            if len(set(user_ids.tolist())) != len(user_ids) or any(
++                user_id in self.saved_user_lengths for user_id in user_ids.tolist()
++            ):
++                raise RuntimeError("Duplicate user ID during embedding export")
++            lengths = batch[0].mask.sum(dim=1).tolist()
++            self.saved_user_lengths.update({int(user_id): int(length) for user_id, length in zip(user_ids.tolist(), lengths)})
+             if user_id_embeddings is not None:
+                 self.saved_user_id_embeddings.update({user_id.item(): user_emb.detach().to(self.device) for user_id, user_emb in zip(user_ids, user_id_embeddings)})
+             if user_text_embeddings is not None:
+                 self.saved_user_text_embeddings.update({user_id.item(): user_emb.detach().to(self.device) for user_id, user_emb in zip(user_ids, user_text_embeddings)})
+             if user_fused_embeddings is not None:
+                 self.saved_user_fused_embeddings.update({user_id.item(): user_emb.detach().to(self.device) for user_id, user_emb in zip(user_ids, user_fused_embeddings)})
+-        if self.save_user_labels and self.trainer.testing:
++        if self.save_user_labels and exporting:
+             user_ids = torch.tensor(batch[0].user_id_list).to(self.device).flatten()
+             for user_id, label in zip(user_ids, labels):
+                 self.user_ids_to_labels[user_id.item()] = label
+@@ -1009,6 +1021,8 @@ class IdTextModule(LightningModule):
+ 
+     def on_validation_start(self):
+         """Lightning hook that is called when the validation starts."""
++        if self.export_validation_embeddings:
++            self._reset_export_buffers()
+         candidate_dataloader = self.trainer.datamodule.get_dataloader(stage="generating_val_candidates")[0]
+         (
+             self.val_cand_id_embeddings,
+@@ -1044,6 +1058,7 @@ class IdTextModule(LightningModule):
+ 
+     def on_test_start(self):
+         """Lightning hook that is called when testing starts."""
++        self._reset_export_buffers()
+         candidate_dataloader = self.trainer.datamodule.get_dataloader(stage="generating_test_candidates")[0]
+         (
+             self.test_cand_id_embeddings,
+@@ -1162,6 +1177,9 @@ class IdTextModule(LightningModule):
+         )
+ 
+     def on_validation_epoch_end(self) -> None:
++        if self.export_validation_embeddings:
++            self._save_embedding_export("val", self.val_cand_id_embeddings,
++                                        self.val_cand_text_embeddings, self.val_cand_fused_embeddings)
+         loss_dict = {
+             "val/loss": self.val_loss,
+             "val/fused_loss": self.val_fused_loss,
+@@ -1185,30 +1203,8 @@ class IdTextModule(LightningModule):
+         self.log_metrics("val")
+ 
+     def on_test_epoch_end(self) -> None:
+-        if self.save_embeddings:
+-            if len(self.saved_user_fused_embeddings) > 0:
+-                user_fused_embeddings = torch.zeros((len(self.saved_user_fused_embeddings), self.saved_user_fused_embeddings[0].shape[0]), device=self.device)
+-                for user in range(len(self.saved_user_fused_embeddings)):
+-                    user_fused_embeddings[user] = self.saved_user_fused_embeddings[user]
+-                torch.save(user_fused_embeddings, f"{self.embeddings_save_path}/test_user_embeddings.pt")
+-                torch.save(self.test_cand_fused_embeddings, f"{self.embeddings_save_path}/item_embeddings.pt")
+-            elif len(self.saved_user_id_embeddings) > 0:
+-                user_id_embeddings = torch.zeros((len(self.saved_user_id_embeddings), self.saved_user_id_embeddings[0].shape[0]), device=self.device)
+-                for user in range(len(self.saved_user_id_embeddings)):
+-                    user_id_embeddings[user] = self.saved_user_id_embeddings[user]
+-                torch.save(user_id_embeddings, f"{self.embeddings_save_path}/test_user_embeddings.pt")
+-                torch.save(self.test_cand_id_embeddings, f"{self.embeddings_save_path}/item_embeddings.pt")
+-            elif len(self.saved_user_text_embeddings) > 0:
+-                user_text_embeddings = torch.zeros((len(self.saved_user_text_embeddings), self.saved_user_text_embeddings[0].shape[0]), device=self.device)
+-                for user in range(len(self.saved_user_text_embeddings)):
+-                    user_text_embeddings[user] = self.saved_user_text_embeddings[user]
+-                torch.save(user_text_embeddings, f"{self.embeddings_save_path}/test_user_embeddings.pt")
+-                torch.save(self.test_cand_text_embeddings, f"{self.embeddings_save_path}/item_embeddings.pt")
+-        if self.save_user_labels:
+-            user_labels = torch.zeros(len(self.user_ids_to_labels), device=self.device)
+-            for user, label in self.user_ids_to_labels.items():
+-                user_labels[user] = label
+-            torch.save(user_labels, f"{self.embeddings_save_path}/test_user_labels.pt")
++        self._save_embedding_export("test", self.test_cand_id_embeddings,
++                                    self.test_cand_text_embeddings, self.test_cand_fused_embeddings)
+         loss_dict = {
+             "test/loss": self.test_loss,
+             "test/fused_loss": self.test_fused_loss,
+@@ -1218,6 +1214,41 @@ class IdTextModule(LightningModule):
+         self.log_dict(loss_dict, sync_dist=True, prog_bar=True, logger=True)
+         self.log_metrics("test")
+ 
++    def _reset_export_buffers(self) -> None:
++        if self.save_embeddings:
++            self.saved_user_id_embeddings = {}
++            self.saved_user_text_embeddings = {}
++            self.saved_user_fused_embeddings = {}
++            self.saved_user_lengths = {}
++        if self.save_user_labels:
++            self.user_ids_to_labels = {}
++
++    def _save_embedding_export(self, split, cand_id, cand_text, cand_fused) -> None:
++        if not self.save_embeddings:
++            return
++        if self.trainer.world_size != 1:
++            raise RuntimeError("Embedding export requires a single process; use a one-device trainer.")
++        sources = ((self.saved_user_fused_embeddings, cand_fused),
++                   (self.saved_user_id_embeddings, cand_id),
++                   (self.saved_user_text_embeddings, cand_text))
++        users, candidates = next(((users, candidates) for users, candidates in sources if users), (None, None))
++        if users is None or candidates is None:
++            raise RuntimeError(f"No {split} embeddings were collected")
++        expected = set(range(len(users)))
++        if set(users) != expected or set(self.saved_user_lengths) != expected:
++            raise RuntimeError(f"{split} user IDs must be unique and contiguous from zero")
++        if self.save_user_labels and set(self.user_ids_to_labels) != expected:
++            raise RuntimeError(f"{split} labels do not match exported user IDs")
++        torch.save(torch.stack([users[i].cpu() for i in range(len(users))]),
++                   f"{self.embeddings_save_path}/{split}_user_embeddings.pt")
++        torch.save(candidates.cpu(), f"{self.embeddings_save_path}/item_embeddings.pt")
++        torch.save(torch.tensor([self.saved_user_lengths[i] for i in range(len(users))]),
++                   f"{self.embeddings_save_path}/{split}_history_lengths.pt")
++        torch.save(torch.arange(len(users)), f"{self.embeddings_save_path}/{split}_user_ids.pt")
++        if self.save_user_labels:
++            torch.save(torch.tensor([self.user_ids_to_labels[i] for i in range(len(users))]),
++                       f"{self.embeddings_save_path}/{split}_user_labels.pt")
++
+     def log_metrics(
+         self,
+         prefix: str,
+diff --git a/src/train.py b/src/train.py
+index 4ebdc04..0eb0c9a 100644
+--- a/src/train.py
++++ b/src/train.py
+@@ -62,7 +62,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+                 datamodule=pipeline_modules.datamodule,
+                 ckpt_path=cfg.get("ckpt_path"),
+             )
+-        train_metrics = pipeline_modules.trainer.callback_metrics
++        train_metrics = dict(pipeline_modules.trainer.callback_metrics)
+ 
+         if cfg.get("test"):
+             command_line_logger.info("Starting testing!")
+@@ -87,8 +87,23 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+                 ckpt_path=ckpt_path,
+             )
+             command_line_logger.info(f"Best ckpt path: {ckpt_path}")
+-
+-        test_metrics = pipeline_modules.trainer.callback_metrics
++            test_metrics = dict(pipeline_modules.trainer.callback_metrics)
++
++            if cfg.get("export_validation_embeddings", False):
++                if not ckpt_path:
++                    raise RuntimeError("Validation export requires a best checkpoint")
++                pipeline_modules.model.export_validation_embeddings = True
++                try:
++                    pipeline_modules.trainer.validate(
++                        model=pipeline_modules.model,
++                        datamodule=pipeline_modules.datamodule,
++                        ckpt_path=ckpt_path,
++                    )
++                finally:
++                    pipeline_modules.model.export_validation_embeddings = False
++
++        else:
++            test_metrics = dict(pipeline_modules.trainer.callback_metrics)
+ 
+         # merge train and test metrics
+         metric_dict = {**train_metrics, **test_metrics}

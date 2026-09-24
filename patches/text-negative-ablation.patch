@@ -1,0 +1,44 @@
+diff --git a/configs/experiment/text_only/ablate_negatives/train_beauty.yaml b/configs/experiment/text_only/ablate_negatives/train_beauty.yaml
+index a583b84..4342937 100644
+--- a/configs/experiment/text_only/ablate_negatives/train_beauty.yaml
++++ b/configs/experiment/text_only/ablate_negatives/train_beauty.yaml
+@@ -21,8 +21,8 @@ model:
+   save_user_embeddings: true
+ 
+   ####### loss change ablation ########
+-  full_batch_id_negatives: false  # Whether to use full batch id negatives for the id loss
+-  id_loss_function:
++  full_batch_text_negatives: false  # Use in-batch negatives for the text loss
++  text_loss_function:
+     _target_: src.components.loss_functions.InBatchContrastiveLoss
+     normalize: true
+     contrastive_tau: 0.07
+@@ -109,4 +109,4 @@ eval:
+         _partial_: true
+     top_k_list: [5, 10]
+     should_sample_negatives_from_vocab: false
+-    normalize: true
+\ No newline at end of file
++    normalize: true
+diff --git a/configs/experiment/text_only/ablate_negatives/train_steam.yaml b/configs/experiment/text_only/ablate_negatives/train_steam.yaml
+index 4dfd2be..d91abc4 100644
+--- a/configs/experiment/text_only/ablate_negatives/train_steam.yaml
++++ b/configs/experiment/text_only/ablate_negatives/train_steam.yaml
+@@ -21,8 +21,8 @@ model:
+   save_user_embeddings: true
+ 
+   ####### loss change ablation ########
+-  full_batch_id_negatives: false  # Whether to use full batch id negatives for the id loss
+-  id_loss_function:
++  full_batch_text_negatives: false  # Use in-batch negatives for the text loss
++  text_loss_function:
+     _target_: src.components.loss_functions.InBatchContrastiveLoss
+     normalize: true
+     contrastive_tau: 0.07
+@@ -109,4 +109,4 @@ eval:
+         _partial_: true
+     top_k_list: [5, 10]
+     should_sample_negatives_from_vocab: false
+-    normalize: true
+\ No newline at end of file
++    normalize: true
