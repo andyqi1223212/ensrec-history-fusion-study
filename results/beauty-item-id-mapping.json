@@ -1,0 +1,90 @@
+{
+  "source": "Beauty raw TFRecords; no model scores or embedding files",
+  "item_catalog": {
+    "rows": 12101,
+    "unique_ids": 12101,
+    "duplicate_rows": 0,
+    "id_range": [
+      1,
+      12101
+    ],
+    "missing_ids_within_range": []
+  },
+  "sequence_ids_across_splits": {
+    "range": [
+      0,
+      12100
+    ],
+    "unique_count": 12101,
+    "missing_ids_within_zero_based_range": []
+  },
+  "splits": {
+    "training": {
+      "events": 22363,
+      "sequence_id_range": [
+        0,
+        12100
+      ],
+      "sequence_id_unique_count": 12068,
+      "first_item_sequence_id_unique_count": 7563,
+      "first_item_text_matches_by_metadata_id_offset": {
+        "0": 0,
+        "1": 22363
+      },
+      "missing_candidate_metadata_rows_by_offset": {
+        "0": 4,
+        "1": 0
+      }
+    },
+    "evaluation": {
+      "events": 22363,
+      "sequence_id_range": [
+        0,
+        12100
+      ],
+      "sequence_id_unique_count": 12092,
+      "first_item_sequence_id_unique_count": 7563,
+      "first_item_text_matches_by_metadata_id_offset": {
+        "0": 0,
+        "1": 22363
+      },
+      "missing_candidate_metadata_rows_by_offset": {
+        "0": 4,
+        "1": 0
+      }
+    },
+    "testing": {
+      "events": 22363,
+      "sequence_id_range": [
+        0,
+        12100
+      ],
+      "sequence_id_unique_count": 12101,
+      "first_item_sequence_id_unique_count": 7563,
+      "first_item_text_matches_by_metadata_id_offset": {
+        "0": 0,
+        "1": 22363
+      },
+      "missing_candidate_metadata_rows_by_offset": {
+        "0": 4,
+        "1": 0
+      }
+    }
+  },
+  "mapping_gate": {
+    "passed": true,
+    "item_ids_cover_1_to_item_count_once": true,
+    "sequence_ids_cover_0_to_item_count_minus_1": true,
+    "all_first_item_texts_match_metadata_id_plus_1": true
+  },
+  "notebook_failure_reproduction": {
+    "cell_7_text_element_type": "ndarray",
+    "cell_8_current_first_error": "AttributeError: 'numpy.ndarray' object has no attribute 'encode'",
+    "after_extracting_scalar_text_cell_13_error": "KeyError: missing key 0",
+    "dictionary_id_range": [
+      1,
+      12101
+    ]
+  },
+  "interpretation": "Each split's first-item text matched metadata ID + 1 for all events, covering only the split's reported unique first-item sequence IDs (7,563 on the checked files), not every catalog item. Remaining items require a generation manifest and source-order contract. Event-level matches do not prove that a precomputed embedding file uses that row order."
+}
