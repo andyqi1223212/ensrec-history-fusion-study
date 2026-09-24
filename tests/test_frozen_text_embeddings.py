@@ -5,8 +5,11 @@ import torch
 from scripts.frozen_text_embeddings import (
     encode_catalog,
     fake_encode,
+    parser,
     text_hash,
     text_value,
+    tensor_sha256,
+    verify_embedding_artifact,
     verify_table,
 )
 
@@ -37,6 +40,34 @@ class FrozenTextEmbeddingTest(unittest.TestCase):
         wrong_order = list(reversed(self.rows))
         with self.assertRaisesRegex(ValueError, "cover IDs"):
             verify_table(self.table, wrong_order, item_count=2, dimension=4)
+
+    def test_swapped_vector_rows_fail_saved_tensor_manifest_validation(self):
+        manifest = {
+            "item_count": 2,
+            "dimension": 4,
+            "encoder_model": "fake-sha256-test-encoder",
+            "rows": self.rows,
+            "tensor_sha256": tensor_sha256(self.table),
+        }
+        swapped = self.table.clone()
+        swapped[[2, 3]] = swapped[[3, 2]]
+        with self.assertRaisesRegex(ValueError, "Tensor SHA-256 mismatch"):
+            verify_embedding_artifact(swapped, manifest)
+
+    def test_empty_catalog_fails_with_clear_message(self):
+        with self.assertRaisesRegex(ValueError, "catalog is empty"):
+            encode_catalog([], lambda texts: torch.empty((0, 4)), 4, batch_size=1)
+
+    def test_real_encoder_is_the_default(self):
+        args = parser().parse_args(
+            [
+                "build",
+                "--data-dir", "data",
+                "--output", "table.pt",
+                "--manifest", "table.manifest.json",
+            ]
+        )
+        self.assertEqual(args.encoder, "sentence-t5-xxl")
 
     def test_zero_placeholders_and_finite_values_are_required(self):
         bad = self.table.clone()

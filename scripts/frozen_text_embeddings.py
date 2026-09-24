@@ -52,6 +52,8 @@ def read_catalog(data_dir: Path) -> list[tuple[int, str]]:
         if ids.size != 1:
             raise ValueError(f"Expected one metadata ID, got shape {ids.shape}")
         catalog.append((int(ids[0]), text_value(row["text"])))
+    if not catalog:
+        raise ValueError("Item catalog is empty; no embeddings can be built")
     ids = [item_id for item_id, _ in catalog]
     expected = list(range(1, len(catalog) + 1))
     if sorted(ids) != expected:
@@ -90,6 +92,8 @@ def encode_catalog(
 ) -> tuple[torch.Tensor, list[dict]]:
     if batch_size < 1 or dimension < 1:
         raise ValueError("batch_size and dimension must be positive")
+    if not catalog:
+        raise ValueError("Item catalog is empty; no embeddings can be built")
     catalog = sorted(catalog, key=lambda pair: pair[0])
     ids = [item_id for item_id, _ in catalog]
     if ids != list(range(1, len(catalog) + 1)):
@@ -141,6 +145,31 @@ def verify_table(table: torch.Tensor, manifest_rows: list[dict], item_count: int
         for entry in manifest_rows
     ):
         raise ValueError("Each manifest row must contain a SHA-256 source_text_hash")
+
+
+def tensor_sha256(table: torch.Tensor) -> str:
+    """Hash dtype, shape, and canonical contiguous CPU tensor bytes."""
+    tensor = table.detach().to(device="cpu").contiguous()
+    header = json.dumps(
+        {"dtype": str(tensor.dtype), "shape": list(tensor.shape)}, sort_keys=True
+    ).encode("utf-8")
+    payload = tensor.view(torch.uint8).numpy().tobytes()
+    return hashlib.sha256(header + b"\0" + payload).hexdigest()
+
+
+def verify_tensor_sha256(table: torch.Tensor, manifest: dict):
+    expected = manifest.get("tensor_sha256")
+    if not isinstance(expected, str) or tensor_sha256(table) != expected:
+        raise ValueError("Tensor SHA-256 mismatch; the saved table differs from its manifest")
+
+
+def verify_embedding_artifact(table: torch.Tensor, manifest: dict):
+    item_count = manifest["item_count"]
+    dimension = manifest["dimension"]
+    if manifest.get("encoder_model") == MODEL_ID and dimension != MODEL_DIMENSION:
+        raise ValueError(f"{MODEL_ID} manifest dimension must be {MODEL_DIMENSION}")
+    verify_table(table, manifest["rows"], item_count, dimension)
+    verify_tensor_sha256(table, manifest)
 
 
 def load_manifest(path: Path) -> dict:
@@ -221,6 +250,8 @@ def build(args):
         "encoder_model": model_id,
         "dimension": dimension,
         "item_count": len(catalog),
+        "tensor_sha256": tensor_sha256(table),
+        "tensor_sha256_covers": "canonical CPU tensor bytes, dtype and shape",
         "source_order_contract": (
             "Input items TFRecord has metadata IDs 1..N exactly once; rows are sorted by ID; "
             "real item metadata_id m is stored at tensor row m+1; rows 0 and 1 are zeros."
@@ -252,11 +283,7 @@ def build(args):
 def validate(args):
     manifest = load_manifest(args.manifest)
     table = torch.load(args.embeddings, map_location="cpu", weights_only=True)
-    item_count = manifest["item_count"]
-    dimension = manifest["dimension"]
-    if manifest.get("encoder_model") == MODEL_ID and dimension != MODEL_DIMENSION:
-        raise ValueError(f"{MODEL_ID} manifest dimension must be {MODEL_DIMENSION}")
-    verify_table(table, manifest["rows"], item_count, dimension)
+    verify_embedding_artifact(table, manifest)
     catalog_items_verified = verify_catalog_hashes(args.data_dir, manifest)
     reports = verify_event_text_hashes(args.data_dir, manifest)
     print(
@@ -279,7 +306,9 @@ def parser():
     build_parser.add_argument("--data-dir", type=Path, required=True)
     build_parser.add_argument("--output", type=Path, required=True)
     build_parser.add_argument("--manifest", type=Path, required=True)
-    build_parser.add_argument("--encoder", choices=("fake", "sentence-t5-xxl"), default="fake")
+    build_parser.add_argument(
+        "--encoder", choices=("fake", "sentence-t5-xxl"), default="sentence-t5-xxl"
+    )
     build_parser.add_argument("--dimension", type=int)
     build_parser.add_argument("--batch-size", type=int, default=8)
     build_parser.add_argument("--device")
