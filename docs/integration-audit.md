@@ -1,6 +1,6 @@
 # Integration audit
 
-Status: static code and raw-data checks on 2026-09-24. No EnsRec training step, Lightning hook, checkpoint callback, or real ID/Text recommendation score has run in this environment.
+Status: raw-data and static-code checks plus a synthetic CPU Lightning lifecycle smoke on 2026-09-24. No EnsRec training step or real ID/Text recommendation score has run in this environment.
 
 ## Beauty item mapping evidence
 
@@ -60,18 +60,19 @@ The real XXL model was not loaded here. Keep both generated artifacts outside Gi
 
 Beauty configs set `trainer.val_check_interval=2000`, `callbacks.model_checkpoint.every_n_train_steps=2001`, `save_top_k=1`, and `mode=max`. ID monitors `val/id_cosine/recall@10`; Text monitors `val/text_cosine/recall@10`. `src/train.py` calls `fit`, gets the first `trainer.checkpoint_callback.best_model_path`, warns and falls back to current weights if that path is empty, then passes the selected path to `trainer.test`. With validation export enabled, it rejects an empty path and calls `trainer.validate(..., ckpt_path=the_same_path)`; the module flag is reset in `finally`.
 
-There are two separate claims to verify at runtime: (1) a best path exists; (2) the weights in that file correspond to the validation metric used to select it. Because checkpoint saves are scheduled 2001 steps apart while validation runs every 2000, a save can potentially consume the most recent validation metric while serializing weights from a later step. This static review does not establish Lightning hook order or whether the observed file has that drift. Lightning/Hydra/OmegaConf are unavailable here, so no callback run was possible.
+The synthetic CPU Lightning smoke (Lightning 2.5.0 / PyTorch Lightning 2.5.3) establishes the framework behavior for a minimal model: with the source-like 2000 validation / 2001 save cadence, validation logs score 2000 at global step 2000, then ModelCheckpoint saves global step 2001 with that score. A 2000-step save cadence with other callback defaults checks before the validation metric is available and produces no best path. Setting `every_n_train_steps=null` and `save_on_train_epoch_end=false` saves at validation end with both score and checkpoint at step 2000. In both successful cases, synthetic `trainer.test` and final `trainer.validate` loaded the exact same supplied best path. See [the pre-training integration check](pretraining-integration-check.md) and [captured results](../results/lightning-checkpoint-lifecycle-smoke.json). This verifies Lightning's minimal lifecycle, not the real EnsRec model/datamodule or GPU callback behavior.
 
-In a complete environment, the first bounded ID-only integration run can stop at the first default save boundary:
+For a bounded study-side ID-only GPU integration run, use the validation-end alignment override supported by the synthetic smoke. It does not change the author's checked-in reproduction config:
 
 ```bash
 python src/train.py experiment=id_only/train_beauty trainer=gpu seed=42 \
   trainer.max_steps=2001 trainer.val_check_interval=2000 \
-  callbacks.model_checkpoint.every_n_train_steps=2001 \
+  callbacks.model_checkpoint.every_n_train_steps=null \
+  callbacks.model_checkpoint.save_on_train_epoch_end=false \
   trainer.num_sanity_val_steps=0 export_validation_embeddings=true
 ```
 
-Preserve the log showing the validation step/metric, checkpoint callback's best path and score, then inspect the saved checkpoint's `global_step`. Confirm `trainer.test` and the final `trainer.validate` both load that exact path. Repeat for Text after the embedding mapping gate passes. This is a short integration check, not a model result; the eventual full experiment must use the predeclared protocol.
+Preserve the log showing the validation step/metric, checkpoint callback's best path and score, then inspect the saved checkpoint's `global_step`. Confirm `trainer.test` and the final `trainer.validate` both load that exact path. Repeat with the same two callback overrides for Text after the embedding mapping gate passes. This is a short integration check, not a model result; the eventual full experiment must use the predeclared protocol.
 
 ## Text negative-sampling ablation
 

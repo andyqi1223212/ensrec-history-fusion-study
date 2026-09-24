@@ -1,0 +1,85 @@
+{
+  "method": "Hydra 1.3 compose() with project custom resolvers; selected fields resolved. The full job config is not serialized because compose() has no runtime output_dir.",
+  "hydra_version": "1.3.2",
+  "omegaconf_version": "2.3.0",
+  "cases": {
+    "id_only": {
+      "experiment_source": "configs/experiment/id_only/train_beauty.yaml",
+      "base_model_source": "configs/model/id_only.yaml",
+      "callback_defaults_source": "configs/callbacks/model_checkpoint.yaml",
+      "overrides": [
+        "experiment=id_only/train_beauty",
+        "trainer=gpu"
+      ],
+      "fields": {
+        "model.id_loss_weight": 1.0,
+        "model.text_loss_weight": 0.0,
+        "model.full_batch_id_negatives": true,
+        "model.full_batch_text_negatives": null,
+        "model.text_loss_function._target_": null,
+        "model.text_loss_function.normalize": null,
+        "model.text_loss_function.contrastive_tau": null,
+        "model.d_model": 128,
+        "callbacks.model_checkpoint.monitor": "val/id_cosine/recall@10",
+        "callbacks.model_checkpoint.mode": "max",
+        "callbacks.model_checkpoint.save_top_k": 1,
+        "callbacks.model_checkpoint.every_n_train_steps": 2001,
+        "trainer.val_check_interval": 2000,
+        "trainer.max_steps": 200000,
+        "trainer.accelerator": "gpu"
+      }
+    },
+    "text_only": {
+      "experiment_source": "configs/experiment/text_only/train_beauty.yaml",
+      "base_model_source": "configs/model/text_only.yaml",
+      "callback_defaults_source": "configs/callbacks/model_checkpoint.yaml",
+      "overrides": [
+        "experiment=text_only/train_beauty",
+        "trainer=gpu"
+      ],
+      "fields": {
+        "model.id_loss_weight": 0.0,
+        "model.text_loss_weight": 1.0,
+        "model.full_batch_id_negatives": null,
+        "model.full_batch_text_negatives": true,
+        "model.text_loss_function._target_": "src.components.loss_functions.FullBatchCrossEntropyLoss",
+        "model.text_loss_function.normalize": true,
+        "model.text_loss_function.contrastive_tau": 0.07,
+        "model.d_model": 128,
+        "callbacks.model_checkpoint.monitor": "val/text_cosine/recall@10",
+        "callbacks.model_checkpoint.mode": "max",
+        "callbacks.model_checkpoint.save_top_k": 1,
+        "callbacks.model_checkpoint.every_n_train_steps": 2001,
+        "trainer.val_check_interval": 2000,
+        "trainer.max_steps": 200000,
+        "trainer.accelerator": "gpu"
+      }
+    },
+    "text_only_ablate_negatives": {
+      "experiment_source": "configs/experiment/text_only/ablate_negatives/train_beauty.yaml",
+      "base_model_source": "configs/model/text_only.yaml",
+      "callback_defaults_source": "configs/callbacks/model_checkpoint.yaml",
+      "overrides": [
+        "experiment=text_only/ablate_negatives/train_beauty",
+        "trainer=gpu"
+      ],
+      "fields": {
+        "model.id_loss_weight": 0.0,
+        "model.text_loss_weight": 1.0,
+        "model.full_batch_id_negatives": null,
+        "model.full_batch_text_negatives": false,
+        "model.text_loss_function._target_": "src.components.loss_functions.InBatchContrastiveLoss",
+        "model.text_loss_function.normalize": true,
+        "model.text_loss_function.contrastive_tau": 0.07,
+        "model.d_model": 128,
+        "callbacks.model_checkpoint.monitor": "val/text_cosine/recall@10",
+        "callbacks.model_checkpoint.mode": "max",
+        "callbacks.model_checkpoint.save_top_k": 1,
+        "callbacks.model_checkpoint.every_n_train_steps": 2001,
+        "trainer.val_check_interval": 2000,
+        "trainer.max_steps": 200000,
+        "trainer.accelerator": "gpu"
+      }
+    }
+  }
+}

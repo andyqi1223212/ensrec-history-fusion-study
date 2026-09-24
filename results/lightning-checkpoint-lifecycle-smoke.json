@@ -1,0 +1,54 @@
+{
+  "scope": "Synthetic CPU Lightning lifecycle only; not an EnsRec model/training run.",
+  "runtime": {
+    "torch": "2.6.0",
+    "lightning": "2.5.0",
+    "pytorch_lightning": "2.5.3",
+    "lightning_fabric": "2.5.3",
+    "torchmetrics": "1.0.3"
+  },
+  "fit": {
+    "validation_step": 2000,
+    "validation_metric": "val/probe_score",
+    "validation_score": 2000.0,
+    "trainer_global_step_at_fit_end": 2001
+  },
+  "scenarios": [
+    {
+      "name": "source-like default cadence",
+      "every_n_train_steps": 2001,
+      "save_on_train_epoch_end": null,
+      "best_model_filename": "probe-2001.ckpt",
+      "best_model_score": 2000.0,
+      "checkpoint_global_step": 2001,
+      "test_loaded_global_step": 2001,
+      "final_validate_loaded_global_step": 2001,
+      "test_and_final_validate_use_same_best_model_path": true
+    },
+    {
+      "name": "save cadence 2000, other callback defaults",
+      "every_n_train_steps": 2000,
+      "save_on_train_epoch_end": null,
+      "best_model_path": null,
+      "best_model_score": null,
+      "monitor_warning": "val/probe_score was absent when the step-2000 save hook ran; ModelCheckpoint produced no best path"
+    },
+    {
+      "name": "validation-end save",
+      "every_n_train_steps": null,
+      "save_on_train_epoch_end": false,
+      "best_model_filename": "probe-2000.ckpt",
+      "best_model_score": 2000.0,
+      "checkpoint_global_step": 2000,
+      "test_loaded_global_step": 2000,
+      "final_validate_loaded_global_step": 2000,
+      "test_and_final_validate_use_same_best_model_path": true
+    }
+  ],
+  "interpretation": "With the configured 2000 validation / 2001 save cadence, this Lightning version saves step-2001 weights using the score from step-2000 validation. A 2000-step cadence checks before the validation metric is available and saves nothing in this minimal setup. Validation-end saving aligns checkpoint step and score in the synthetic test.",
+  "study_side_candidate_override_for_both_id_and_text_routes": [
+    "callbacks.model_checkpoint.every_n_train_steps=null",
+    "callbacks.model_checkpoint.save_on_train_epoch_end=false"
+  ],
+  "limitation": "Candidate override is supported by this synthetic lifecycle smoke only; it still requires a minimal real EnsRec GPU smoke before use for reported model results. Author reproduction configs remain untouched."
+}

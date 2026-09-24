@@ -2,7 +2,7 @@
 
 An independent, reproducible study of a question about [EnsRec](https://github.com/snap-research/EnsRec): does item text recover more ID-only misses for short interaction histories, and can a history-aware fusion rule convert that complementarity into better recommendations?
 
-**Status:** offline analysis and export integration are implemented, and a raw Beauty item-ID audit now exposes an unresolved preprocessing/embedding-generation boundary. ID/Text training and real fusion metrics have **not** been run, so this repository makes no improvement claim.
+**Status:** offline analysis, raw Beauty audits, config composition checks, and synthetic Lightning lifecycle smoke are implemented. Real ID/Text training, GPU checkpoint behavior, and fusion metrics have **not** been run, so this repository makes no improvement claim.
 
 ## Research design
 
@@ -17,6 +17,8 @@ For the same next-item events and candidate catalog, compare ID-only, Text-only,
 | `scripts/fusion_item_id_audit.py` | Audits item-catalog IDs, sequence IDs, and first-item text matches at raw ID offsets. |
 | `scripts/frozen_text_embeddings.py` | Builds and validates a manifest-backed frozen Text table; fake mode needs no model download. |
 | `scripts/audit_beauty_config_sources.py` | Prints source-aware Beauty model/loss/checkpoint fields from the upstream YAML files. |
+| `scripts/compose_beauty_config_fields.py` | Uses Hydra to compose ID-only, Text-only, and Text-negative-ablation Beauty configs and print selected resolved fields. |
+| `scripts/lightning_checkpoint_lifecycle_smoke.py` | Runs a tiny synthetic CPU Lightning checkpoint/validation/test lifecycle; not EnsRec training. |
 | `docs/integration-audit.md` | Records mapping evidence, notebook failures, checkpoint selection, Text loss, and runtime limits. |
 | `patches/ensrec-aligned-export.patch` | Adds validation/test event IDs and history lengths to an EnsRec checkout, using the selected checkpoint. |
 | `patches/text-negative-ablation.patch` | Corrects two Text-only negative-sampling experiment configs in a local EnsRec checkout. |
@@ -24,6 +26,8 @@ For the same next-item events and candidate catalog, compare ID-only, Text-only,
 | `results/beauty-history-lengths.json` | A real input-data audit, not a model result. |
 | `results/beauty-item-id-mapping.json` | A real raw-data mapping audit; it does not verify any generated embedding file. |
 | `results/beauty-training-config-audit.json` | Source-aware static overlay of the three Beauty ID/Text experiment configs; not a Hydra compose dump. |
+| `results/beauty-hydra-composed-fields.json` | Selected values from actual Hydra composition; cross-checked against the static field/source audit. |
+| `results/lightning-checkpoint-lifecycle-smoke.json` | Assembled summary of three separately observed synthetic Lightning runs; not output from one invocation. |
 
 This repository contains the study's scripts, tests, aggregate audit, and integration patches. It does not contain the upstream training code, downloaded data, checkpoints, text embeddings, or private learning notes. Candidate matrices are exported by split, and the evaluator checks each route's val/test matrices match. The original `item_embeddings.pt` test export remains for notebook compatibility. Cross-route row semantics are not certified until the generated table passes its manifest gate. `scripts/frozen_text_embeddings.py` is the research-side replacement for the broken notebook data/indexing path: it sorts explicit metadata IDs, writes two zero placeholders, places item `m` at row `m+1`, and emits only row IDs and SHA-256 text hashes. Real SentenceT5-XXL is the default encoder; `--encoder fake` must be explicit and cannot produce research embeddings. Validation binds the tensor bytes, shape, and dtype to the manifest, hashes all current catalog texts, and checks every raw event's first-item text against the corresponding manifest hash. The tensor digest detects accidental changes such as swapped rows, but cannot prove that an encoder output was initially paired with the correct source text; generation order is guaranteed by the sorted-ID implementation and source-order contract. Event evidence covers 7,563 unique first-item IDs per split; full-catalog hashes and that contract cover remaining rows. Generated tensors/manifests and raw data must stay out of Git. The dynamic candidate path separately applies a +2 transform to item IDs before scattering Text vectors; it is not the frozen-table path used by this study. See the [integration audit](docs/integration-audit.md). The upstream code is MIT licensed; follow its license when applying patches.
 
