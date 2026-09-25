@@ -1,0 +1,193 @@
+{
+  "catalog": {
+    "duplicate_id_records": 0,
+    "id_range": [
+      1,
+      12101
+    ],
+    "missing_ids_from_expected_1_to_catalog_size": 0,
+    "records": 12101,
+    "unique_ids": 12101
+  },
+  "gates": {
+    "all_user_sets_identical": true,
+    "both_prefix_and_one_event_extension_checks_pass": true,
+    "catalog_ids_are_unique_and_cover_1_to_catalog_size": true,
+    "split_user_and_item_id_checks_pass": true
+  },
+  "passed": true,
+  "sequence_relationships": {
+    "evaluation_is_strict_prefix_of_testing": {
+      "compared_users": 22363,
+      "event_count_delta_right_minus_left": {
+        "1": 22363
+      },
+      "exactly_one_new_event_users": 22363,
+      "left_unique_users": 22363,
+      "right_unique_users": 22363,
+      "strict_prefix_users": 22363,
+      "strict_prefix_violations": 0,
+      "users_missing_from_left": 0,
+      "users_missing_from_right": 0
+    },
+    "training_is_strict_prefix_of_evaluation": {
+      "compared_users": 22363,
+      "event_count_delta_right_minus_left": {
+        "1": 22363
+      },
+      "exactly_one_new_event_users": 22363,
+      "left_unique_users": 22363,
+      "right_unique_users": 22363,
+      "strict_prefix_users": 22363,
+      "strict_prefix_violations": 0,
+      "users_missing_from_left": 0,
+      "users_missing_from_right": 0
+    }
+  },
+  "source": "Beauty raw gzipped TFRecords; aggregate-only audit; no model scores",
+  "splits": {
+    "evaluation": {
+      "duplicate_user_records": 0,
+      "last_event_target_out_of_catalog_range": 0,
+      "out_of_catalog_range_event_ids": 0,
+      "raw_sequence_item_id_range": [
+        0,
+        12100
+      ],
+      "records": 22363,
+      "sequence_length": {
+        "maximum": 203,
+        "mean": 7.8764,
+        "minimum": 4
+      },
+      "sequences_too_short_for_next_item_target": 0,
+      "unique_users": 22363,
+      "user_id_range": [
+        0,
+        22362
+      ],
+      "user_ids_are_contiguous_from_zero": true,
+      "users_truncated_to_limit": 1019,
+      "visible_history_length_limit": 19,
+      "visible_history_lengths": {
+        "10": 558,
+        "11": 439,
+        "12": 361,
+        "13": 262,
+        "14": 207,
+        "15": 213,
+        "16": 141,
+        "17": 118,
+        "18": 112,
+        "19": 1136,
+        "3": 7162,
+        "4": 4221,
+        "5": 2680,
+        "6": 1811,
+        "7": 1366,
+        "8": 881,
+        "9": 695
+      }
+    },
+    "testing": {
+      "duplicate_user_records": 0,
+      "last_event_target_out_of_catalog_range": 0,
+      "out_of_catalog_range_event_ids": 0,
+      "raw_sequence_item_id_range": [
+        0,
+        12100
+      ],
+      "records": 22363,
+      "sequence_length": {
+        "maximum": 204,
+        "mean": 8.8764,
+        "minimum": 5
+      },
+      "sequences_too_short_for_next_item_target": 0,
+      "unique_users": 22363,
+      "user_id_range": [
+        0,
+        22362
+      ],
+      "user_ids_are_contiguous_from_zero": true,
+      "users_truncated_to_limit": 1136,
+      "visible_history_length_limit": 19,
+      "visible_history_lengths": {
+        "10": 695,
+        "11": 558,
+        "12": 439,
+        "13": 361,
+        "14": 262,
+        "15": 207,
+        "16": 213,
+        "17": 141,
+        "18": 118,
+        "19": 1248,
+        "4": 7162,
+        "5": 4221,
+        "6": 2680,
+        "7": 1811,
+        "8": 1366,
+        "9": 881
+      }
+    },
+    "training": {
+      "duplicate_user_records": 0,
+      "last_event_target_out_of_catalog_range": 0,
+      "out_of_catalog_range_event_ids": 0,
+      "raw_sequence_item_id_range": [
+        0,
+        12100
+      ],
+      "records": 22363,
+      "sequence_length": {
+        "maximum": 202,
+        "mean": 6.8764,
+        "minimum": 3
+      },
+      "sequences_too_short_for_next_item_target": 0,
+      "unique_users": 22363,
+      "user_id_range": [
+        0,
+        22362
+      ],
+      "user_ids_are_contiguous_from_zero": true,
+      "users_truncated_to_limit": 935,
+      "visible_history_length_limit": 19,
+      "visible_history_lengths": {
+        "10": 439,
+        "11": 361,
+        "12": 262,
+        "13": 207,
+        "14": 213,
+        "15": 141,
+        "16": 118,
+        "17": 112,
+        "18": 117,
+        "19": 1019,
+        "2": 7162,
+        "3": 4221,
+        "4": 2680,
+        "5": 1811,
+        "6": 1366,
+        "7": 881,
+        "8": 695,
+        "9": 558
+      }
+    }
+  },
+  "target_definition": {
+    "collator_source": "src/experimental/data/loading/components/collate_functions.py:process_text_sequence",
+    "dataloader_sequence_length": 20,
+    "field": "sequence_data",
+    "metadata_item_id_range": [
+      1,
+      12101
+    ],
+    "sequence_event_id_offset_from_metadata_id": -1,
+    "target_event": "last event in each split record",
+    "visible_history": "sequence_data[-20:-1]",
+    "visible_history_limit": 19
+  },
+  "user_sets_identical_across_splits": true
+}
