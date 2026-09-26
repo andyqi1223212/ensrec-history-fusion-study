@@ -1,8 +1,8 @@
 # Lightweight Beauty proxy probe
 
-## Locked method
+## Fixed analysis method
 
-This is a CPU proxy experiment, not EnsRec training or a paper reproduction. Train sequences alone fit an item-to-next-item transition table and item popularity. For a query, average transition probabilities from sources in its latest 19 visible events, then add a fixed 0.1 train-popularity backoff (use popularity alone if no source has outgoing transitions). Fit scikit-learn TF-IDF on catalog descriptions only; score a query by the normalized sum of TF-IDF vectors for its visible history against all 12,101 candidates. Map raw sequence ID `i` to metadata item ID `i+1`.
+This is a CPU proxy experiment, not EnsRec training or a paper reproduction. The fixed analysis method uses training sequences alone to fit an item-to-next-item transition table and item popularity. For a query, average transition probabilities from sources in its latest 19 visible events, then add a fixed 0.1 train-popularity backoff (use popularity alone if no source has outgoing transitions). Fit scikit-learn TF-IDF on catalog descriptions only; score a query by the normalized sum of TF-IDF vectors for its visible history against all 12,101 candidates. Map raw sequence ID `i` to metadata item ID `i+1`.
 
 ID and TF-IDF scores use different scales, so rank each query's entire candidate set into deterministic percentiles (higher is better; item ID breaks score ties), then fuse as `alpha * ID + (1-alpha) * Text`. Equal fusion is alpha 0.5. Validation alone selects a median-length cutoff and an ID-weight alpha from 0.0 through 1.0 in 0.1 steps, maximizing Recall@10; ties favor alpha nearest 0.5, then larger ID weight. This rank-percentile proxy is distinct from the EnsRec paper's cosine ensemble. For each validation/test record, the target is its final event and the input is `sequence[-20:-1]`.
 
