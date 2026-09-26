@@ -30,6 +30,7 @@
     "selected_alpha_is_id_weight": true,
     "short_rule": "visible history length <= validation median cutoff",
     "target": "last item in evaluation/testing record; exactly one target per user",
+    "target_frequency_diagnostic": "post hoc only; bands use training catalog event-frequency tertile cutpoints and do not route prediction",
     "test_used_for_selection": false,
     "text_model": "catalog-only scikit-learn TfidfVectorizer: lowercase, unicode accent stripping, sublinear TF, smooth IDF, L2 normalization, min_df=2, max_df=0.85; query is normalized sum of visible-history item vectors",
     "tfidf_catalog_nonzero_entries": 196355,
@@ -344,6 +345,349 @@
         }
       }
     },
+    "posthoc_alternative_explanations": {
+      "target_item_training_frequency_tertiles": {
+        "bands": {
+          "high": {
+            "long": {
+              "hit_rate": 0.02004981320049813,
+              "id_top10_misses": 8030,
+              "text_hits_among_id_misses": 161,
+              "users": 8614
+            },
+            "short": {
+              "hit_rate": 0.032144786601836846,
+              "id_top10_misses": 3702,
+              "text_hits_among_id_misses": 119,
+              "users": 4009
+            },
+            "short_minus_long": 0.012094973401338714,
+            "target_frequency_range": {
+              "maximum": 369,
+              "minimum": 10
+            }
+          },
+          "low": {
+            "long": {
+              "hit_rate": 0.03618817852834741,
+              "id_top10_misses": 4145,
+              "text_hits_among_id_misses": 150,
+              "users": 4249
+            },
+            "short": {
+              "hit_rate": 0.06230366492146597,
+              "id_top10_misses": 1910,
+              "text_hits_among_id_misses": 119,
+              "users": 1948
+            },
+            "short_minus_long": 0.02611548639311856,
+            "target_frequency_range": {
+              "maximum": 5,
+              "minimum": 0
+            }
+          },
+          "middle": {
+            "long": {
+              "hit_rate": 0.02600264433671221,
+              "id_top10_misses": 2269,
+              "text_hits_among_id_misses": 59,
+              "users": 2338
+            },
+            "short": {
+              "hit_rate": 0.04982817869415808,
+              "id_top10_misses": 1164,
+              "text_hits_among_id_misses": 58,
+              "users": 1205
+            },
+            "short_minus_long": 0.02382553435744587,
+            "target_frequency_range": {
+              "maximum": 9,
+              "minimum": 6
+            }
+          }
+        },
+        "catalog_items_by_band": {
+          "high": 4006,
+          "low": 4781,
+          "middle": 3314
+        },
+        "cutpoints_repeated": false,
+        "difference_definition": "short text-rescue rate minus long text-rescue rate; null if either ID-miss denominator is empty",
+        "empty_bands": [],
+        "lower_cutpoint": 5.0,
+        "method": "catalog item occurrence counts in training; numpy linear quantiles at 1/3 and 2/3; bins are <=lower, (lower,upper], >upper",
+        "target_frequency_band_used_for_routing_or_alpha_selection": false,
+        "upper_cutpoint": 9.0
+      },
+      "text_rescue_definition": "Text top-10 hits among ID top-10 misses",
+      "visible_history_length": {
+        "1": {
+          "hit_rate": null,
+          "id_top10_misses": 0,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 0,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "10": {
+          "hit_rate": 0.01639344262295082,
+          "id_top10_misses": 671,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 11,
+          "users": 695,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "11": {
+          "hit_rate": 0.015037593984962405,
+          "id_top10_misses": 532,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 8,
+          "users": 558,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "12": {
+          "hit_rate": 0.0166270783847981,
+          "id_top10_misses": 421,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 7,
+          "users": 439,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "13": {
+          "hit_rate": 0.005747126436781609,
+          "id_top10_misses": 348,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 2,
+          "users": 361,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "14": {
+          "hit_rate": 0.012145748987854251,
+          "id_top10_misses": 247,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 3,
+          "users": 262,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "15": {
+          "hit_rate": 0.015228426395939087,
+          "id_top10_misses": 197,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 3,
+          "users": 207,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "16": {
+          "hit_rate": 0.009950248756218905,
+          "id_top10_misses": 201,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 2,
+          "users": 213,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "17": {
+          "hit_rate": 0.0,
+          "id_top10_misses": 132,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 141,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "18": {
+          "hit_rate": 0.02631578947368421,
+          "id_top10_misses": 114,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 3,
+          "users": 118,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "19": {
+          "hit_rate": 0.017064846416382253,
+          "id_top10_misses": 1172,
+          "is_truncated_bucket": true,
+          "text_hits_among_id_misses": 20,
+          "users": 1248,
+          "visible_history_definition": "19 means 19 or more pre-target events were truncated to the latest 19"
+        },
+        "2": {
+          "hit_rate": null,
+          "id_top10_misses": 0,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 0,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "3": {
+          "hit_rate": null,
+          "id_top10_misses": 0,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 0,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "4": {
+          "hit_rate": 0.043683589138134596,
+          "id_top10_misses": 6776,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 296,
+          "users": 7162,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "5": {
+          "hit_rate": 0.03180565990483346,
+          "id_top10_misses": 3993,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 127,
+          "users": 4221,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "6": {
+          "hit_rate": 0.03371226969815758,
+          "id_top10_misses": 2551,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 86,
+          "users": 2680,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "7": {
+          "hit_rate": 0.02905287623474724,
+          "id_top10_misses": 1721,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 50,
+          "users": 1811,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "8": {
+          "hit_rate": 0.022393822393822392,
+          "id_top10_misses": 1295,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 29,
+          "users": 1366,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "9": {
+          "hit_rate": 0.02237926972909305,
+          "id_top10_misses": 849,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 19,
+          "users": 881,
+          "visible_history_definition": "exact visible pre-target event count"
+        }
+      }
+    },
+    "ranking_metrics_by_cohort": {
+      "all": {
+        "ID-only": {
+          "hit@1": 0.011671063810758843,
+          "hit@10_count": 1143,
+          "hit@1_count": 261,
+          "ndcg@10": 0.028688038244538666,
+          "users": 22363
+        },
+        "Text-only": {
+          "hit@1": 0.00022358359790725752,
+          "hit@10_count": 924,
+          "hit@1_count": 5,
+          "ndcg@10": 0.01539627621241649,
+          "users": 22363
+        },
+        "equal-alpha-0.5": {
+          "hit@1": 0.004695255556052408,
+          "hit@10_count": 1164,
+          "hit@1_count": 105,
+          "ndcg@10": 0.024281397525899355,
+          "users": 22363
+        },
+        "exploratory-conditional": {
+          "hit@1": 0.008675043598801592,
+          "hit@10_count": 1312,
+          "hit@1_count": 194,
+          "ndcg@10": 0.029954641103613858,
+          "users": 22363
+        },
+        "validation-selected-global": {
+          "hit@1": 0.008675043598801592,
+          "hit@10_count": 1312,
+          "hit@1_count": 194,
+          "ndcg@10": 0.029954641103613858,
+          "users": 22363
+        }
+      },
+      "long": {
+        "ID-only": {
+          "hit@1": 0.01144661535425301,
+          "hit@10_count": 757,
+          "hit@1_count": 174,
+          "ndcg@10": 0.028200035716987343,
+          "users": 15201
+        },
+        "Text-only": {
+          "hit@1": 0.000263140582856391,
+          "hit@10_count": 520,
+          "hit@1_count": 4,
+          "ndcg@10": 0.012787020701208227,
+          "users": 15201
+        },
+        "equal-alpha-0.5": {
+          "hit@1": 0.0040128938885599635,
+          "hit@10_count": 721,
+          "hit@1_count": 61,
+          "ndcg@10": 0.02144425082387458,
+          "users": 15201
+        },
+        "exploratory-conditional": {
+          "hit@1": 0.0071705808828366555,
+          "hit@10_count": 845,
+          "hit@1_count": 109,
+          "ndcg@10": 0.027503257645957367,
+          "users": 15201
+        },
+        "validation-selected-global": {
+          "hit@1": 0.0071705808828366555,
+          "hit@10_count": 845,
+          "hit@1_count": 109,
+          "ndcg@10": 0.027503257645957367,
+          "users": 15201
+        }
+      },
+      "short": {
+        "ID-only": {
+          "hit@1": 0.012147444847807875,
+          "hit@10_count": 386,
+          "hit@1_count": 87,
+          "ndcg@10": 0.02972380010174444,
+          "users": 7162
+        },
+        "Text-only": {
+          "hit@1": 0.00013962580284836637,
+          "hit@10_count": 404,
+          "hit@1_count": 1,
+          "ndcg@10": 0.020934295344764545,
+          "users": 7162
+        },
+        "equal-alpha-0.5": {
+          "hit@1": 0.006143535325328121,
+          "hit@10_count": 443,
+          "hit@1_count": 44,
+          "ndcg@10": 0.03030310473303125,
+          "users": 7162
+        },
+        "exploratory-conditional": {
+          "hit@1": 0.011868193242111143,
+          "hit@10_count": 467,
+          "hit@1_count": 85,
+          "ndcg@10": 0.0351575844071375,
+          "users": 7162
+        },
+        "validation-selected-global": {
+          "hit@1": 0.011868193242111143,
+          "hit@10_count": 467,
+          "hit@1_count": 85,
+          "ndcg@10": 0.0351575844071375,
+          "users": 7162
+        }
+      }
+    },
     "text_rescue_among_id_misses": {
       "bootstrap_replicates": 2000,
       "bootstrap_seed": 20260926,
@@ -435,6 +779,140 @@
         "hits": 1462,
         "recall@10": 0.0653758440280821,
         "users": 22363
+      }
+    },
+    "recall_at_10_by_alpha_by_cohort": {
+      "0.0": {
+        "long": {
+          "hits": 378,
+          "recall@10": 0.03442622950819672,
+          "users": 10980
+        },
+        "short": {
+          "hits": 738,
+          "recall@10": 0.06483352367565669,
+          "users": 11383
+        }
+      },
+      "0.1": {
+        "long": {
+          "hits": 502,
+          "recall@10": 0.045719489981785065,
+          "users": 10980
+        },
+        "short": {
+          "hits": 837,
+          "recall@10": 0.0735307036809277,
+          "users": 11383
+        }
+      },
+      "0.2": {
+        "long": {
+          "hits": 525,
+          "recall@10": 0.04781420765027322,
+          "users": 10980
+        },
+        "short": {
+          "hits": 848,
+          "recall@10": 0.0744970570148467,
+          "users": 11383
+        }
+      },
+      "0.3": {
+        "long": {
+          "hits": 545,
+          "recall@10": 0.04963570127504554,
+          "users": 10980
+        },
+        "short": {
+          "hits": 861,
+          "recall@10": 0.0756391109549328,
+          "users": 11383
+        }
+      },
+      "0.4": {
+        "long": {
+          "hits": 575,
+          "recall@10": 0.052367941712204005,
+          "users": 10980
+        },
+        "short": {
+          "hits": 872,
+          "recall@10": 0.0766054642888518,
+          "users": 11383
+        }
+      },
+      "0.5": {
+        "long": {
+          "hits": 599,
+          "recall@10": 0.054553734061930786,
+          "users": 10980
+        },
+        "short": {
+          "hits": 877,
+          "recall@10": 0.07704471580426953,
+          "users": 11383
+        }
+      },
+      "0.6": {
+        "long": {
+          "hits": 628,
+          "recall@10": 0.057194899817850635,
+          "users": 10980
+        },
+        "short": {
+          "hits": 902,
+          "recall@10": 0.07924097338135816,
+          "users": 11383
+        }
+      },
+      "0.7": {
+        "long": {
+          "hits": 648,
+          "recall@10": 0.05901639344262295,
+          "users": 10980
+        },
+        "short": {
+          "hits": 912,
+          "recall@10": 0.08011947641219362,
+          "users": 11383
+        }
+      },
+      "0.8": {
+        "long": {
+          "hits": 687,
+          "recall@10": 0.06256830601092896,
+          "users": 10980
+        },
+        "short": {
+          "hits": 940,
+          "recall@10": 0.0825792848985329,
+          "users": 11383
+        }
+      },
+      "0.9": {
+        "long": {
+          "hits": 738,
+          "recall@10": 0.06721311475409836,
+          "users": 10980
+        },
+        "short": {
+          "hits": 974,
+          "recall@10": 0.08556619520337345,
+          "users": 11383
+        }
+      },
+      "1.0": {
+        "long": {
+          "hits": 665,
+          "recall@10": 0.06056466302367942,
+          "users": 10980
+        },
+        "short": {
+          "hits": 797,
+          "recall@10": 0.07001669155758587,
+          "users": 11383
+        }
       }
     },
     "selected_alpha": 0.9

@@ -219,6 +219,13 @@ def topk_indices(scores: np.ndarray, item_ids: np.ndarray, k: int = K) -> np.nda
     return candidates[order]
 
 
+def target_rank(scores: np.ndarray, target_id: int, item_ids: np.ndarray) -> int:
+    """One-based rank under descending score and ascending item-ID tie-break."""
+    target_score = scores[target_id]
+    ahead = (scores > target_score) | ((scores == target_score) & (item_ids < target_id))
+    return int(np.count_nonzero(ahead)) + 1
+
+
 def predict_hits(examples: list[tuple[int, tuple[int, ...], int]], item_text_matrix,
                  transitions, popularity, alphas: tuple[float, ...],
                  candidate_matrices: dict | None = None,
@@ -230,10 +237,13 @@ def predict_hits(examples: list[tuple[int, tuple[int, ...], int]], item_text_mat
     profiles, empty_profiles = history_profiles(histories, item_text_matrix)
     variants = {
         name: {"fusion": {alpha: np.zeros(len(examples), dtype=bool) for alpha in alphas},
-               "text": np.zeros(len(examples), dtype=bool)}
+               "fusion_rank": {alpha: np.zeros(len(examples), dtype=np.int32) for alpha in alphas},
+               "text": np.zeros(len(examples), dtype=bool),
+               "text_rank": np.zeros(len(examples), dtype=np.int32)}
         for name in candidate_matrices
     }
     id_hits = np.zeros(len(examples), dtype=bool)
+    id_ranks = np.zeros(len(examples), dtype=np.int32)
     for start in range(0, len(examples), batch_size):
         end = min(start + batch_size, len(examples))
         similarities = {
@@ -246,14 +256,17 @@ def predict_hits(examples: list[tuple[int, tuple[int, ...], int]], item_text_mat
             id_pct = rank_percentiles(score_id, item_ids, popularity)
             id_top = topk_indices(id_pct, item_ids)
             id_hits[index] = target in id_top
+            id_ranks[index] = target_rank(id_pct, target, item_ids)
             for name, sim in similarities.items():
                 row = sim.getrow(local).toarray().reshape(-1)
                 text_pct = rank_percentiles(row, item_ids)
                 variants[name]["text"][index] = target in topk_indices(text_pct, item_ids)
+                variants[name]["text_rank"][index] = target_rank(text_pct, target, item_ids)
                 for alpha in alphas:
                     fused = alpha * id_pct + (1.0 - alpha) * text_pct
                     variants[name]["fusion"][alpha][index] = target in topk_indices(fused, item_ids)
-    return {"id": id_hits, "variants": variants,
+                    variants[name]["fusion_rank"][alpha][index] = target_rank(fused, target, item_ids)
+    return {"id": id_hits, "id_rank": id_ranks, "variants": variants,
             "empty_history_text_profiles": empty_profiles}
 
 
@@ -282,7 +295,7 @@ def select_validation_alpha_by_cohort(validation_hits: dict[float, np.ndarray],
 
 def route_cohort_hits(fusion_hits: dict[float, np.ndarray], alphas: dict[str, float],
                       short_mask: np.ndarray) -> np.ndarray:
-    routed = np.zeros(len(short_mask), dtype=bool)
+    routed = np.empty(len(short_mask), dtype=next(iter(fusion_hits.values())).dtype)
     routed[short_mask] = fusion_hits[alphas["short"]][short_mask]
     routed[~short_mask] = fusion_hits[alphas["long"]][~short_mask]
     return routed
@@ -315,6 +328,72 @@ def _metric(hits: np.ndarray, mask: np.ndarray) -> dict:
         raise ValueError("Empty history cohort")
     count = int(np.sum(hits & mask))
     return {"users": n, "hits": count, "recall@10": count / n}
+
+
+def _ranking_metric(ranks: np.ndarray, mask: np.ndarray) -> dict:
+    n = int(mask.sum())
+    if n == 0:
+        raise ValueError("Empty ranking cohort")
+    selected = ranks[mask]
+    top1 = int(np.sum(selected == 1))
+    top10 = int(np.sum(selected <= K))
+    discounted = np.where(selected <= K, 1.0 / np.log2(selected + 1), 0.0)
+    return {"users": n, "ndcg@10": float(discounted.mean()),
+            "hit@1": top1 / n, "hit@1_count": top1, "hit@10_count": top10}
+
+
+def _rescue_counts(id_hits: np.ndarray, text_hits: np.ndarray, mask: np.ndarray) -> dict:
+    misses = mask & ~id_hits
+    denominator = int(misses.sum())
+    numerator = int(np.sum(misses & text_hits))
+    return {"users": int(mask.sum()), "id_top10_misses": denominator,
+            "text_hits_among_id_misses": numerator,
+            "hit_rate": numerator / denominator if denominator else None}
+
+
+def _difference_rate(short: dict, long: dict) -> float | None:
+    if short["hit_rate"] is None or long["hit_rate"] is None:
+        return None
+    return short["hit_rate"] - long["hit_rate"]
+
+
+def training_frequency_bands(popularity: np.ndarray) -> tuple[dict[str, np.ndarray], dict]:
+    """Use fixed catalog-wide training-event frequency tertiles; empty bins stay empty."""
+    lower, upper = (float(x) for x in np.quantile(popularity, [1 / 3, 2 / 3]))
+    bands = {
+        "low": popularity <= lower,
+        "middle": (popularity > lower) & (popularity <= upper),
+        "high": popularity > upper,
+    }
+    details = {"lower_cutpoint": lower, "upper_cutpoint": upper,
+               "cutpoints_repeated": lower == upper,
+               "method": "catalog item occurrence counts in training; numpy linear quantiles at 1/3 and 2/3; bins are <=lower, (lower,upper], >upper",
+               "catalog_items_by_band": {name: int(mask.sum()) for name, mask in bands.items()},
+               "empty_bands": [name for name, mask in bands.items() if not np.any(mask)]}
+    return bands, details
+
+
+def _write_event_diagnostics(path: Path, examples: list[tuple[int, tuple[int, ...], int]],
+                             id_ranks: np.ndarray, text_ranks: np.ndarray,
+                             equal_ranks: np.ndarray, global_ranks: np.ndarray,
+                             conditional_ranks: np.ndarray) -> None:
+    with path.open("w", encoding="utf-8") as out:
+        for i, (user_id, history, target) in enumerate(examples):
+            id_rank = int(id_ranks[i])
+            row = {
+                "user_id": int(user_id), "target_item_id": int(target),
+                "visible_history_length": len(history),
+                "target_rank": {"ID": id_rank if id_rank <= K else 0,
+                                "Text": int(text_ranks[i]) if text_ranks[i] <= K else 0,
+                                "equal": int(equal_ranks[i]) if equal_ranks[i] <= K else 0,
+                                "global": int(global_ranks[i]) if global_ranks[i] <= K else 0,
+                                "conditional": int(conditional_ranks[i]) if conditional_ranks[i] <= K else 0},
+                "equal_vs_ID": {"added": bool(id_rank > K and equal_ranks[i] <= K),
+                                "lost": bool(id_rank <= K and equal_ranks[i] > K)},
+                "global_vs_ID": {"added": bool(id_rank > K and global_ranks[i] <= K),
+                                 "lost": bool(id_rank <= K and global_ranks[i] > K)},
+            }
+            out.write(json.dumps(row, separators=(",", ":")) + "\n")
 
 
 def _gain(id_hits: np.ndarray, fusion_hits: np.ndarray, mask: np.ndarray) -> dict:
@@ -378,7 +457,8 @@ def bootstrap_rescue_difference(id_hits: np.ndarray, text_hits: np.ndarray,
             "bootstrap_replicates": int(replicates), "bootstrap_seed": int(seed)}
 
 
-def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dict:
+def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
+            event_diagnostics_path: Path | None = None) -> dict:
     n_items = len(data["catalog"])
     catalog_texts = align_catalog(data["catalog"], n_items)
     data_audit = validate_splits({s: data[s] for s in ("training", "evaluation", "testing")}, n_items)
@@ -396,6 +476,13 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
     val_short = validation_lengths <= cutoff
     conditional_alphas = select_validation_alpha_by_cohort(val_result["fusion"], val_short)
     test_short = test_lengths <= cutoff
+    validation_alpha_neighborhood = {
+        str(alpha): {
+            cohort: _metric(val_result["fusion"][alpha], mask)
+            for cohort, mask in {"short": val_short, "long": ~val_short}.items()
+        }
+        for alpha in ALPHAS
+    }
     test_weights = tuple(sorted({0.0, 0.5, selected_alpha, *conditional_alphas.values()}))
     control_matrix, _ = shuffle_candidate_text(text_matrix, n_items, NEGATIVE_CONTROL_SEED)
     test_bundle = predict_hits(test_examples, text_matrix, transitions, popularity, test_weights,
@@ -405,6 +492,7 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
     control_result = test_bundle["variants"]["candidate_text_permuted"]
     test_id_hits = test_bundle["id"]
     conditional_hits = route_cohort_hits(test_result["fusion"], conditional_alphas, test_short)
+    conditional_ranks = route_cohort_hits(test_result["fusion_rank"], conditional_alphas, test_short)
 
     val_grid = {str(a): _metric(val_result["fusion"][a], np.ones(len(validation_examples), dtype=bool))
                 for a in ALPHAS}
@@ -436,6 +524,46 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
     conditional_comparisons["all"]["conditional_vs_global_paired_user_bootstrap"] = \
         bootstrap_paired_hit_difference(conditional_hits, test_result["fusion"][selected_alpha],
                                         bootstrap_replicates)
+    test_ranks = {
+        "ID-only": test_bundle["id_rank"],
+        "Text-only": test_result["text_rank"],
+        "equal-alpha-0.5": test_result["fusion_rank"][0.5],
+        "validation-selected-global": test_result["fusion_rank"][selected_alpha],
+        "exploratory-conditional": conditional_ranks,
+    }
+    rank_metrics = {
+        cohort: {name: _ranking_metric(ranks, mask) for name, ranks in test_ranks.items()}
+        for cohort, mask in cohorts.items()
+    }
+    if event_diagnostics_path is not None:
+        _write_event_diagnostics(
+            event_diagnostics_path, test_examples, test_bundle["id_rank"],
+            test_result["text_rank"], test_result["fusion_rank"][0.5],
+            test_result["fusion_rank"][selected_alpha], conditional_ranks)
+
+    frequency_bands, frequency_band_info = training_frequency_bands(popularity)
+    targets = np.asarray([target for _, _, target in test_examples], dtype=np.int32)
+    target_frequencies = popularity[targets]
+    frequency_diagnostics = {}
+    for name, band_mask in frequency_bands.items():
+        short_counts = _rescue_counts(test_id_hits, test_result["text"], band_mask[targets] & test_short)
+        long_counts = _rescue_counts(test_id_hits, test_result["text"], band_mask[targets] & ~test_short)
+        frequency_diagnostics[name] = {
+            "target_frequency_range": {
+                "minimum": int(target_frequencies[band_mask[targets]].min()) if np.any(band_mask[targets]) else None,
+                "maximum": int(target_frequencies[band_mask[targets]].max()) if np.any(band_mask[targets]) else None,
+            },
+            "short": short_counts, "long": long_counts,
+            "short_minus_long": _difference_rate(short_counts, long_counts),
+        }
+    history_length_diagnostics = {}
+    for length in range(1, HISTORY_LIMIT + 1):
+        mask = test_lengths == length
+        counts = _rescue_counts(test_id_hits, test_result["text"], mask)
+        history_length_diagnostics[str(length)] = {
+            **counts, "is_truncated_bucket": length == HISTORY_LIMIT,
+            "visible_history_definition": "19 means 19 or more pre-target events were truncated to the latest 19" if length == HISTORY_LIMIT else "exact visible pre-target event count",
+        }
     rescue = bootstrap_rescue_difference(test_id_hits, test_result["text"],
                                          test_short, bootstrap_replicates)
     equal_recovery = {
@@ -467,6 +595,7 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
             "fusion": "deterministic per-query candidate rank percentiles, higher is better; score ties broken by candidate ID; alpha*ID_percentile + (1-alpha)*Text_percentile",
             "alpha_grid": list(ALPHAS), "selected_alpha_is_id_weight": True,
             "validation_cutoff": cutoff, "short_rule": "visible history length <= validation median cutoff",
+            "target_frequency_diagnostic": "post hoc only; bands use training catalog event-frequency tertile cutpoints and do not route prediction",
             "validation_short_users": val_short_count,
             "validation_long_users": int((~val_short).sum()),
             "weight_selection": "validation Recall@10 only; ties prefer alpha nearest 0.5, then larger ID alpha",
@@ -485,13 +614,24 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
             "empty_test_text_profiles": test_bundle["empty_history_text_profiles"],
         },
         "validation": {"selected_alpha": selected_alpha, "recall_at_10_by_alpha": val_grid,
+                        "recall_at_10_by_alpha_by_cohort": validation_alpha_neighborhood,
                         "exploratory_conditional_alpha": {
                             cohort: {"selected_alpha": alpha,
                                      "users": int((val_short if cohort == "short" else ~val_short).sum()),
                                      "recall_at_10": float(val_result["fusion"][alpha][val_short if cohort == "short" else ~val_short].mean())}
                             for cohort, alpha in conditional_alphas.items()}},
-        "test": {"metrics_by_cohort": metrics, "fusion_added_lost_net_hits": gains,
+        "test": {"metrics_by_cohort": metrics, "ranking_metrics_by_cohort": rank_metrics,
+                 "fusion_added_lost_net_hits": gains,
                  "exploratory_conditional_fusion": conditional_comparisons,
+                 "posthoc_alternative_explanations": {
+                     "target_item_training_frequency_tertiles": {
+                         **frequency_band_info, "bands": frequency_diagnostics,
+                         "difference_definition": "short text-rescue rate minus long text-rescue rate; null if either ID-miss denominator is empty",
+                         "target_frequency_band_used_for_routing_or_alpha_selection": False,
+                     },
+                     "visible_history_length": history_length_diagnostics,
+                     "text_rescue_definition": "Text top-10 hits among ID top-10 misses",
+                 },
                  "equal_fusion_recovery_of_text_only_hits": equal_recovery,
                  "text_rescue_among_id_misses": rescue,
                  "candidate_text_permutation_control": control_metrics},
@@ -578,19 +718,23 @@ def main() -> int:
                         help="Temporary input extracted from TFRecords; contains private raw text and sequences")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--bootstrap-replicates", type=int, default=BOOTSTRAP_REPLICATES)
+    parser.add_argument("--write-event-diagnostics", action="store_true",
+                        help="Write private per-test-event JSONL into --output-dir (not for publication)")
     args = parser.parse_args()
     if bool(args.data_dir) == bool(args.prepared_json):
         parser.error("Specify exactly one of --data-dir or --prepared-json")
     if args.bootstrap_replicates < 100:
         parser.error("Use at least 100 bootstrap replicates")
     data = load_tfrecords(args.data_dir) if args.data_dir else load_prepared_json(args.prepared_json)
-    report = analyze(data, args.bootstrap_replicates)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    event_path = args.output_dir / "beauty-cpu-proxy.event-diagnostics.jsonl" if args.write_event_diagnostics else None
+    report = analyze(data, args.bootstrap_replicates, event_path)
     json_path = args.output_dir / "beauty-cpu-proxy-results.json"
     svg_path = args.output_dir / "beauty-cpu-proxy-summary.svg"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     write_svg(report, svg_path)
     print(json.dumps({"results": str(json_path), "chart": str(svg_path),
+                      "event_diagnostics": str(event_path) if event_path else None,
                       "selected_alpha": report["validation"]["selected_alpha"],
                       "test_primary": report["test"]["text_rescue_among_id_misses"]}, indent=2))
     return 0

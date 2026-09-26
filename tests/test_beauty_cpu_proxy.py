@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,10 @@ from scipy.sparse import csr_matrix
 
 from scripts.beauty_cpu_proxy import (
     _equal_recovery,
+    _difference_rate,
+    _ranking_metric,
+    _rescue_counts,
+    _write_event_diagnostics,
     align_catalog,
     analyze,
     bootstrap_rescue_difference,
@@ -16,6 +21,8 @@ from scripts.beauty_cpu_proxy import (
     select_validation_alpha_by_cohort,
     shuffle_candidate_text,
     topk_indices,
+    target_rank,
+    training_frequency_bands,
     validate_splits,
     visible_history_target,
     write_svg,
@@ -72,6 +79,41 @@ class BeautyCpuProxyTests(unittest.TestCase):
         pct = rank_percentiles(scores, ids)
         np.testing.assert_array_equal(pct, np.linspace(1, 0, 12, dtype=np.float32))
         np.testing.assert_array_equal(topk_indices(scores, ids), np.arange(10))
+        self.assertEqual(target_rank(scores, 0, ids), 1)
+        self.assertEqual(target_rank(scores, 10, ids), 11)
+
+    def test_ndcg_and_hit_at_one_from_target_rank(self):
+        ranks = np.array([1, 2, 10, 11], dtype=np.int32)
+        result = _ranking_metric(ranks, np.ones(4, dtype=bool))
+        self.assertEqual(result["hit@1_count"], 1)
+        self.assertEqual(result["hit@1"], 0.25)
+        self.assertAlmostEqual(result["ndcg@10"], (1 + 1 / np.log2(3) + 1 / np.log2(11)) / 4)
+
+    def test_training_frequency_tertiles_report_repeated_cutpoints_and_null_difference(self):
+        bands, details = training_frequency_bands(np.zeros(12, dtype=np.int64))
+        self.assertTrue(details["cutpoints_repeated"])
+        self.assertEqual(details["empty_bands"], ["middle", "high"])
+        self.assertEqual(sum(int(mask.sum()) for mask in bands.values()), 12)
+        id_hits = np.array([True])
+        text_hits = np.array([False])
+        empty = _rescue_counts(id_hits, text_hits, np.array([True]))
+        self.assertIsNone(empty["hit_rate"])
+        self.assertIsNone(_difference_rate(empty, empty))
+
+    def test_optional_event_jsonl_has_no_raw_sequences_and_uses_zero_outside_top10(self):
+        examples = [(7, (1, 2, 3), 4)]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "events.jsonl"
+            _write_event_diagnostics(path, examples,
+                                     np.array([11]), np.array([2]), np.array([1]),
+                                     np.array([13]), np.array([10]))
+            row = json.loads(path.read_text().strip())
+        self.assertEqual(row["user_id"], 7)
+        self.assertEqual(row["target_item_id"], 4)
+        self.assertEqual(row["target_rank"], {"ID": 0, "Text": 2, "equal": 1,
+                                              "global": 0, "conditional": 10})
+        self.assertEqual(row["equal_vs_ID"], {"added": True, "lost": False})
+        self.assertNotIn("history", row)
 
     def test_test_targets_cannot_change_validation_alpha_or_cutoff(self):
         baseline = toy_data()
@@ -90,6 +132,11 @@ class BeautyCpuProxyTests(unittest.TestCase):
                          report_b["validation"]["recall_at_10_by_alpha"])
         self.assertEqual(report_a["validation"]["exploratory_conditional_alpha"],
                          report_b["validation"]["exploratory_conditional_alpha"])
+        freq_a = report_a["test"]["posthoc_alternative_explanations"]["target_item_training_frequency_tertiles"]
+        freq_b = report_b["test"]["posthoc_alternative_explanations"]["target_item_training_frequency_tertiles"]
+        self.assertEqual((freq_a["lower_cutpoint"], freq_a["upper_cutpoint"]),
+                         (freq_b["lower_cutpoint"], freq_b["upper_cutpoint"]))
+        self.assertFalse(freq_a["target_frequency_band_used_for_routing_or_alpha_selection"])
         self.assertIn("equal-alpha-0.5", report_a["test"]["metrics_by_cohort"]["all"])
         self.assertIn("validation-selected-global", report_a["test"]["metrics_by_cohort"]["all"])
 
@@ -140,6 +187,22 @@ class BeautyCpuProxyTests(unittest.TestCase):
         self.assertEqual(report["test"]["metrics_by_cohort"]["all"]["ID-only"]["users"], 8)
         self.assertIn("recovered_by_equal",
                       report["test"]["equal_fusion_recovery_of_text_only_hits"]["all"])
+        rank_row = report["test"]["ranking_metrics_by_cohort"]["all"]["ID-only"]
+        self.assertIn("ndcg@10", rank_row)
+        self.assertIn("hit@1", rank_row)
+        self.assertEqual(len(report["validation"]["recall_at_10_by_alpha_by_cohort"]), 11)
+        self.assertIn("target_item_training_frequency_tertiles",
+                      report["test"]["posthoc_alternative_explanations"])
+        self.assertEqual(report["test"]["posthoc_alternative_explanations"]
+                         ["visible_history_length"]["19"]["is_truncated_bucket"], True)
+        for cohort in ("all", "short", "long"):
+            old = report["test"]["metrics_by_cohort"][cohort]
+            ranks = report["test"]["ranking_metrics_by_cohort"][cohort]
+            self.assertEqual(old["ID-only"]["hits"], ranks["ID-only"]["hit@10_count"])
+            self.assertEqual(old["Text-only"]["hits"], ranks["Text-only"]["hit@10_count"])
+            self.assertEqual(old["equal-alpha-0.5"]["hits"], ranks["equal-alpha-0.5"]["hit@10_count"])
+            self.assertEqual(old["validation-selected-global"]["hits"],
+                             ranks["validation-selected-global"]["hit@10_count"])
         self.assertNotIn("category", str(report))
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "summary.svg"

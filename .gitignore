@@ -9,3 +9,4 @@ outputs/
 *.safetensors
 *.tfrecord*
 *.manifest.json
+*.event-diagnostics.jsonl
