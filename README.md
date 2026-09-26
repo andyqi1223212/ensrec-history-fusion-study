@@ -1,49 +1,34 @@
-# Can item text help when interaction histories are short?
+# 用户历史短时，商品文本能补上 ID 推荐漏掉的目标吗？
 
-## Problem
+推荐系统要根据用户已有交互，预测下一次发生交互的商品。交互少时，ID 路线能利用的行为线索也少；商品文本看起来可能补位。但 Text 单路整体命中更少，不能只凭这一点判断它是否有用。
 
-In next-item recommendation, users with little history may have fewer useful ID transitions. This case study asks whether catalog text can recover some of the targets an interaction-only score misses, and whether a simple fusion preserves those text-only wins. It uses the Beauty data and audited item-ID mapping from [EnsRec](https://github.com/snap-research/EnsRec).
+我先问一个更具体的问题：**当 ID 没把真实下一商品排进前十时，Text 能否找回它？这种补充在短历史用户中是否更多？** 事前预测是短历史中的 Text 补充更大；同时还要检查这些独有命中能否在融合后留下来。
 
-## Test
+## 结果怎样改变判断
 
-For each user, predict the final item in the validation and test sequence from the preceding events, capped at 19 visible history items. Fit ID transitions and popularity on training; fit TF-IDF on catalog text. Validation selects a median history-length cutoff and one global ID weight from a fixed grid. Test labels never select cutoff/weights; this follow-up was decided after the first test was inspected. The main comparison is Text top-10 hit rate among ID top-10 misses, short versus long histories. “Short” and “long” are cohorts split at the validation-selected cutoff.
+在同一批 Beauty 测试事件、同一 12,101 件候选商品上，Text 找回 ID 漏例的比例在短历史组为 **296/6,776（4.37%）**，长历史组为 **370/14,444（2.56%）**。差值为 **+1.81 个百分点**，用户 bootstrap 95% 区间为 **+1.25 至 +2.35 个百分点**。这支持一个有限判断：在这次代理实验中，短历史组的 ID 漏例更常被 Text 命中。
 
-The initial analysis followed a written protocol; this was not a preregistered study. ID transition scores and TF-IDF similarities have different scales, so each is converted to a deterministic within-query candidate rank percentile before fusion. Equal fusion uses alpha 0.5; the validation-selected alpha is 0.9. This percentile fusion is a CPU proxy and differs from the EnsRec paper's cosine ensemble.
+但有互补命中，不代表简单融合能保住它。Text 单独命中而 ID 未命中的目标共有 **666 个**，等权融合只保留 **168 个（25.2%）**；它同时丢掉 515 个 ID 命中，全体净增仅 21 个。短组净增 57，长组净减 36。
 
-## Finding
+验证集选择的全局 ID 权重为 **0.9**，在这次测试中前十命中相对 ID 净增 **169 次**，整体 NDCG@10 也从 **0.02869** 升到 **0.02995**。但首位命中从 **1.167%** 降到 **0.868%**，长历史组 NDCG@10 从 **0.02820** 降到 **0.02750**。看过首轮测试后追加的分组调权中，两组验证集也都选出 0.9，没有新收益。
 
-![Beauty CPU proxy summary: text rescue by history length and fusion outcomes](results/beauty-cpu-proxy-summary.svg)
+为解释短长差异，目标商品的低、中、高训练频次组内，短组的 Text 救回率仍分别高 **2.61、2.38、1.21 个百分点**；粗分频次无法单独解释差异。频次分组只用于测试后诊断、没有用于路由或选参；ID 分数仍含训练流行度回退。这个测试的“短历史组”实际全是 **4 件可见历史**。另一项事后诊断发现，短组 Text 前十平均有 **3.672 个位置**被历史商品占据，长组为 **4.637 个**；测试目标在完整既往历史中均未出现。这可能挤占新目标的排名位置，但还不能说明它解释了全部差异。[补充诊断](docs/beauty-followup-diagnostics.md)与[历史商品占位诊断](docs/seen-item-diagnostic.md)列出细节；排除可见历史候选和平均并列排名的敏感性结果待核对后再决定下一步。
 
-| Test result | Short histories | Long histories | All test users |
-| --- | ---: | ---: | ---: |
-| Text top-10 hit rate, conditioned on ID miss | 4.37% (296/6,776) | 2.56% (370/14,444) | — |
-| Equal fusion added / lost / net hits vs ID | +211 / −154 / +57 | +325 / −361 / −36 | +536 / −515 / +21 |
-| Text-only hits recovered by equal fusion | 69/296 (23.3%) | 99/370 (26.8%) | 168/666 (25.2%) |
-| Validation-selected fusion net hits vs ID | — | — | +169 (alpha 0.9) |
+![Beauty CPU 代理实验汇总](results/beauty-cpu-proxy-summary.svg)
 
-Short minus long Text rescue was **+1.81 percentage points** (user-bootstrap 95% CI: **+1.25 to +2.35 pp**, 2,000 replicates). The measured complementarity is larger for the short-history cohort in this Beauty test split. Equal fusion's net change is only **+21 hits**: it recovers 168 of 666 Text-only wins, while losing 515 ID hits. This small aggregate difference does not establish a reliable uplift.
+## 怎样得到这些结果
 
-In the fixed-seed control, shuffling candidate-side text vectors reduced Text-only Recall@10 to **0.085%**, close to the uniform-candidate rate of **0.083%** (10/12,101). This is a sanity check that the observed text matches depend on item-text alignment, not evidence of generalization.
+这是 Beauty 上的 CPU 代理实验：ID 分数来自训练序列中的商品转移和流行度，Text 分数来自商品目录描述的 TF-IDF。每个查询都在同一候选集排序；ID 与 Text 分数先转换为候选百分位，再比较单路和融合。原始序列商品 ID `i` 对应元数据 ID `i+1`。
 
-### Exploratory follow-up: validation-selected cohort weights
+初轮分析方法在查看测试结果前已有书面记录，但没有预注册。初轮测试结果查看后才增加分组权重探索；权重仍只由验证集选择，测试标签没有参与调参。这次代理不是 EnsRec 学习表征训练，也没有复现论文的 cosine 融合。完整设计、切分和结果见[轻量探测计划](docs/lightweight-probe-plan.md)与[研究方案](docs/protocol.md)。
 
-After inspecting the initial test, a follow-up selected short/long weights independently using only each cohort's validation Recall@10, with the same cutoff, alpha grid, and tie-break. Both cohorts selected alpha **0.9** (short validation n=11,383; long n=10,980), so routed test predictions exactly matched the global-alpha result: **1,312/22,363** hits, with **0 added / 0 lost / 0 net** versus global (paired user-bootstrap 95% CI for Recall@10 difference: **0.00 to 0.00 pp**). Test Recall@10 was 6.52% short and 5.56% long. Since each user's test sequence has one more item than validation, the same cutoff moves users across the short/long boundary: test short n=7,162, versus validation short n=11,383. This is a post hoc exploratory check, not preregistered or confirmatory evidence; the unchanged result says cohort-specific validation tuning did not improve over the global choice in this run.
+当前百分位实现用候选商品 ID 拆分同分项；稀疏文本分数中许多商品相似度为零，因此融合结果可能受候选 ID 顺序影响。
 
-## What it means
+## 获取数据并运行
 
-This result supports a narrow descriptive claim: under this proxy scoring setup and this split, Text@10 more often rescues an ID miss for users in the short-history cohort. It also shows that a single equal rank-percentile blend does not reliably convert those wins into net gains for every cohort. It does not show that training EnsRec, using its learned representations, or deploying text will produce the same effect.
+按 [EnsRec 上游 README 的 Data Preparation 说明](https://github.com/snap-research/EnsRec#data-preparation)准备 Beauty 数据目录，其中应包含 `items/`、`training/`、`evaluation/` 和 `testing/` TFRecord 文件。原始数据、用户序列和商品文本不放入本仓库。
 
-## Limitations
-
-- This is one CPU proxy on one dataset, with deterministic sparse transition and catalog TF-IDF scores; it is not EnsRec model training or a reproduction of the paper's cosine fusion.
-- Results are descriptive, not causal. The cohorts use visible history length, and validation chooses the cutoff and global alpha.
-- The split contains adjacent sequences from the same users: training is a strict prefix of validation, and validation is a strict prefix of test. Each evaluation label is the last item of that split's sequence.
-- Histories are truncated to the latest 19 events. The fixed candidate set has 12,101 items, with sequence ID `i` mapped to metadata ID `i+1`.
-- A single deterministic scoring recipe and one Beauty test do not establish robustness, generalization, or online impact. Bootstrap intervals quantify user sampling uncertainty for this split, not model or dataset uncertainty.
-
-## Run the CPU proxy
-
-Python 3.10+ is required; no PyTorch or GPU is used by this proxy. Install its small dependency set and point it at the upstream Beauty data directory, containing `items/`, `training/`, `evaluation/`, and `testing/` TFRecords:
+安装代理依赖后运行：
 
 ```bash
 python -m pip install -r requirements-proxy.txt
@@ -52,17 +37,13 @@ python scripts/beauty_cpu_proxy.py \
   --output-dir outputs/beauty-cpu-proxy
 ```
 
-The command writes aggregate JSON and SVG outputs. Keep source data, raw user sequences, text, per-user predictions, and generated vectors out of Git; this repository's `.gitignore` excludes common local data and output artifacts.
+需要在本地逐事件复核时，可加 `--write-event-diagnostics`；明细写入输出目录且默认关闭，公开结果只保留聚合数据。
 
-## Technical appendix
+## 相关材料
 
-Earlier implementation evidence remains available for inspection:
-
-- [Aggregated Beauty split-prefix and history-length audit](results/beauty-sequence-relationship-audit.json) ([audit script](scripts/beauty_sequence_relationship_audit.py))
-- [ID/Text export hook and lifecycle probe](docs/id-text-export-probe.md)
-- [Integration and embedding-row audit](docs/integration-audit.md)
-- [Configuration audit](docs/config-audit.md)
-- [Static protocol](docs/protocol.md)
-- [EnsRec-aligned export patch](patches/ensrec-aligned-export.patch) and [Text negative-ablation patch](patches/text-negative-ablation.patch)
-
-The experiment implementation is [scripts/beauty_cpu_proxy.py](scripts/beauty_cpu_proxy.py); aggregate machine-readable results are in [results/beauty-cpu-proxy-results.json](results/beauty-cpu-proxy-results.json). No raw Beauty records or user-level rows are committed.
+- [研究案例走读](docs/research-case-walkthrough.md)：从问题到下一步决策的完整推理链
+- [轻量探测计划](docs/lightweight-probe-plan.md)：指标口径、代理方法、分组结果与待补诊断
+- [原始方案与证据边界](docs/protocol.md)：真实 EnsRec 计划与当前代理结果的区别
+- [聚合结果](results/beauty-cpu-proxy-results.json)与[汇总图](results/beauty-cpu-proxy-summary.svg)
+- [代理脚本](scripts/beauty_cpu_proxy.py)
+- 实现前的[导出探针](docs/id-text-export-probe.md)、[集成审计](docs/integration-audit.md)与[配置审计](docs/config-audit.md)

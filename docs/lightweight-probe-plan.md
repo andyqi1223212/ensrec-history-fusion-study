@@ -1,17 +1,75 @@
-# Lightweight Beauty proxy probe
+# Beauty 轻量探测：Text 能否补回 ID 漏掉的下一商品？
 
-## Fixed analysis method
+## 从推荐问题到分层预测
 
-This is a CPU proxy experiment, not EnsRec training or a paper reproduction. The fixed analysis method uses training sequences alone to fit an item-to-next-item transition table and item popularity. For a query, average transition probabilities from sources in its latest 19 visible events, then add a fixed 0.1 train-popularity backoff (use popularity alone if no source has outgoing transitions). Fit scikit-learn TF-IDF on catalog descriptions only; score a query by the normalized sum of TF-IDF vectors for its visible history against all 12,101 candidates. Map raw sequence ID `i` to metadata item ID `i+1`.
+任务是根据用户已有交互，预测用户下一次发生交互的商品。ID 路线从交互序列学习商品转移；Text 路线从商品描述寻找与历史相似的商品。短历史用户可能缺少足够的行为线索，因此我预先预测：**在 ID 没命中的用户中，Text 对短历史组的补充会更大。**
 
-ID and TF-IDF scores use different scales, so rank each query's entire candidate set into deterministic percentiles (higher is better; item ID breaks score ties), then fuse as `alpha * ID + (1-alpha) * Text`. Equal fusion is alpha 0.5. Validation alone selects a median-length cutoff and an ID-weight alpha from 0.0 through 1.0 in 0.1 steps, maximizing Recall@10; ties favor alpha nearest 0.5, then larger ID weight. This rank-percentile proxy is distinct from the EnsRec paper's cosine ensemble. For each validation/test record, the target is its final event and the input is `sequence[-20:-1]`.
+这个预测包含两个不同问题：Text 是否能找回一部分 ID 漏例；融合后这些命中是否还留在前十。若只比较两路各自的总命中，会看不到互补关系；若只看 Text 的独有命中，又会误以为融合自然能得到收益。
 
-The fixed-seed negative control permutes candidate-side text vectors against item IDs while keeping user history text profiles intact. It only checks whether correct text-to-item alignment matters; it does not select the fusion weight. Test is never used for tuning.
+## 怎样做同事件比较
 
-## Beauty run
+本轮用 Beauty 数据搭建固定的 CPU 代理，先检查这个问题能否在共同候选集上回答。每条验证和测试记录取序列最后一件商品为目标，之前最多 19 件作为可见历史；所有路线在同一事件和 12,101 件候选商品上评分。原始序列商品 ID `i` 映射到商品目录 ID `i+1`。
 
-The full-data CPU run used Python 3.13.3, scikit-learn 1.9.1, NumPy 2.4.4, and SciPy 1.18.1. Because the available TFRecord reader is in the separate Python 3.11 environment, records were staged as a temporary `/private/tmp` JSON input for the run and that raw text/sequence file was removed afterward. Validation selected a visible-history cutoff of 4 events (11,383 short / 10,980 long) and ID alpha 0.9. On all 22,363 test users, ID-only Recall@10 was 5.11%, Text-only 4.13%, equal fusion 5.20% (+21 net hits vs ID), and validation-selected fusion 5.87% (+169 net hits). Equal fusion added/lost 211/154 hits for short histories and 325/361 for long histories. Of 666 test targets hit by Text@10 but missed by ID@10, equal fusion retained 168 (25.2%): 69/296 short and 99/370 long.
+ID 分数只用训练序列拟合：对可见历史中有后续转移记录的商品，平均其转移概率，并加固定的 0.1 训练流行度回退；若没有可用转移，则只用训练流行度。Text 分数使用整个商品目录的商品描述拟合 TF-IDF，再以用户可见历史商品文本的归一化和，与全目录计算相似度。文本目录不是按用户目标标签拟合。
 
-Among ID top-10 misses, Text top-10 hit 296/6,776 short users (4.37%) and 370/14,444 long users (2.56%): short minus long is +1.81 percentage points (user-bootstrap 95% CI +1.25 to +2.35 pp; 2,000 replicates). With candidate text misaligned, Text-only Recall@10 fell to 0.085% and equal-fusion Recall@10 to 0.729%.
+ID 转移和文本相似度的分值尺度不同，所以每条查询先把两路各自在完整候选集中的分数转为百分位，再用 `alpha × ID + (1-alpha) × Text` 融合。等权融合取 `alpha=0.5`。它是一个便于运行和比较的代理规则，不是 EnsRec 学习向量或论文中的 cosine 融合。百分位实现会以商品 ID 打破同分；稀疏文本导致的大量零相似度候选因此仍有不同百分位，融合可能受候选 ID 顺序影响，后续平均同分排名对照尚待完成。
 
-These are proxy results for the audited Beauty next-item split and fixed candidate inventory. They do not establish EnsRec model performance or generalize beyond this probe.
+ID-only、Text-only 和融合共享候选商品及目标。固定种子的负对照只打乱候选侧商品文本向量与商品 ID 的对应关系，保留用户历史文本；它检查文本命中是否依赖正确商品对应关系，不参与调权。
+
+## 结果怎样改变判断
+
+### 1. 短历史组更常被 Text 找回
+
+验证集历史长度中位数产生切点 4。测试集按当前预测时可见历史长度分组：短组 7,162 人，长组 15,201 人。测试用户的验证和测试记录是相邻序列，因此组别人数与验证集不同。
+
+先在各组内筛出 ID top-10 未命中的事件，再计算其中 Text top-10 命中的比例：
+
+| 测试组 | ID 未命中人数 | Text 找回人数 | 找回比例 |
+| --- | ---: | ---: | ---: |
+| 短历史 | 6,776 | 296 | 4.37% |
+| 长历史 | 14,444 | 370 | 2.56% |
+
+短组比长组高 **1.81 个百分点**；按用户重抽样的 95% 区间是 **1.25 至 2.35 个百分点**。这支持原预测在本次 Beauty 代理切分中的方向。它比较的是两组各自的 ID 漏例，不能单独说明历史长度导致了差异：两组的商品频次、可用转移和精确历史长度也可能不同。
+
+### 2. 等权融合只留下少部分 Text 独有命中
+
+测试目标中，Text 命中但 ID 未命中的共有 **666 个**。等权融合只把其中 **168 个（25.2%）**留在前十。与此同时，它在短组新增 211 次、丢失 154 次，净增 57；在长组新增 325 次、丢失 361 次，净减 36；全体新增 536、丢失 515，净增 21。
+
+因此，互补命中确实出现，但指定的等权规则没有稳定地把它转化为净收益。尤其长组净变化为负；不能只用“Text 有独有命中”来推导“融合会提升推荐”。
+
+### 3. 分组调权没有改变全局选择
+
+初轮书面方案由验证集选择历史切点和一个全局 `alpha`，测试集只报告结果。这是运行前写下的方案，不是预注册研究。查看首轮测试后，才追加按短、长历史组分别用验证集选 `alpha` 的探索。追加方案仍只看验证集标签选权重，但提出时已经看过首轮测试，故应视作事后探索。
+
+验证集为全局和两组都选出 `alpha=0.9`。分组路由与全局路由在测试集完全相同：净变化 0。全局权重相对 ID 在本次测试净增 169 次；这是验证集选择后在一个测试切分中的观察值，不能单凭这一结果称为稳定提升。
+
+更细的排序指标揭示了覆盖和排序位置之间的取舍：
+
+| 方法 | Recall@10 | NDCG@10 | Hit@1 |
+| --- | ---: | ---: | ---: |
+| ID | 5.11% | 0.02869 | 1.167%（261/22,363） |
+| Text | 4.13% | 0.01540 | 0.022%（5/22,363） |
+| 等权融合 | 5.21% | 0.02428 | 0.470%（105/22,363） |
+| 全局 `alpha=0.9` | 5.87% | 0.02995 | 0.868%（194/22,363） |
+
+所以全局权重虽提高 Recall@10 和整体 NDCG@10，却把第一名命中降到 ID 的约四分之三；长历史组 NDCG@10 也从 ID 的 0.02820 略降到 0.02750。不能把“覆盖更多目标”概括成“排序整体更好”。按 Recall@10 选权重的用途和代价，需要结合首位命中场景判断。
+
+## 负对照与竞争解释
+
+打乱候选侧文本对应关系后，Text-only Recall@10 从对齐文本时的 4.13% 降至 0.085%，接近 12,101 件候选下的均匀命中率 0.083%。这说明当前观测到的文本命中依赖正确的文本—商品对齐；它不证明模型可迁移或可泛化。
+
+### 4. 频次分层留下历史长度信号，候选占位提供了另一种解释
+
+短、长历史组的目标商品频次并不相同，因此按训练频次三分位再看一次：低、中、高频组内，短组的 Text 救回率仍比长组高 **2.61、2.38、1.21 个百分点**。目标频次分组是测试后的诊断标签，没有用于路由或选择 alpha；ID 分数中的训练流行度回退仍按既定方法使用训练数据。这个结果说明粗粒度频次构成不能单独解释差异，不能排除更细频次及其他混杂因素。
+
+长度切点 4 也需要准确理解：测试短组 **7,162 人全部恰好有 4 件可见历史**，不是 0–4 件的泛指。长度 5 的救回率为 3.18%，长度 6 为 3.37%，之后总体下降但并非严格单调；长度 19 是截断桶，代表至少 19 件既往事件。详情见[补充诊断](beauty-followup-diagnostics.md)。
+
+更具体的竞争解释来自候选商品的重复占位：短组 Text 前十平均有 **3.672 个位置**被已看过商品占据，长组为 **4.637 个**；Text 第一名分别有 **97.18%** 和 **91.16%** 的概率是可见历史商品。与此同时，测试目标在完整既往历史中均未出现。因为候选集仍包含已看过商品，Text 可能把相似的旧商品排在新目标前面，长组占位也更多。这是事后观察到的潜在机制，不等于因果解释或全部答案，见[历史商品占位诊断](seen-item-diagnostic.md)。
+
+目前正在做两个固定敏感性对照：对文本同分使用平均排名；在 ID、Text 和融合中统一排除可见历史商品候选，并仍由验证集各自选权重。结果核对后，再决定是否值得做独立切分复核或真实 EnsRec 双路训练。
+
+## 数据形状与运行
+
+Beauty 的 training、evaluation、testing 对同一批 22,363 位用户构成逐项严格前缀关系。每条评估记录只取最后一个商品为目标；因此验证与测试是同一用户的相邻预测位置，不是两组互不相关的用户样本。Bootstrap 区间描述这次测试切分中按用户重抽样的不确定性，不含模型、数据集或实验方案选择的不确定性。
+
+数据目录准备和命令见 [README 运行说明](../README.md#获取数据并运行)。实现见[代理脚本](../scripts/beauty_cpu_proxy.py)，聚合结果见[结果 JSON](../results/beauty-cpu-proxy-results.json)。本仓库不保存原始序列、用户级预测或商品文本。

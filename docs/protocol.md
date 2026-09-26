@@ -1,21 +1,27 @@
-# Experiment protocol
+# 研究方案与当前执行边界
 
-## Question and prediction
+## 原始问题与计划中的 EnsRec 实验
 
-Text-only may retrieve a next item that ID-only misses even when Text-only has lower overall Recall@10. The preregistered prediction is that this marginal help will be larger for short visible histories. A counterexample is equal or greater net help on long histories, or Text-only hits that equal-weight fusion fails to recover.
+研究问题是：在下一商品推荐中，Text 路线能否找回 ID 路线漏掉的目标？这种边际帮助是否会随可见历史长度改变？原始设想针对 EnsRec 的学习表征：分别训练 ID-only 与 Text-only 路线，在相同事件和候选商品上导出向量；按论文的 ID cosine + Text cosine 方式评估等权融合，并用验证集选择统一权重及历史长度分组权重。预测是 Text 的相对帮助在短历史中更大。等权融合可能仍丢掉部分 Text-only 命中。
 
-## Fair comparison
+这是一份写下的研究方案，不是预注册研究。原始方案要求先确认两路商品向量行与标签商品 ID 一致、两路覆盖相同事件和候选集，再解释融合分数。初期审计发现导出映射与生命周期仍有待核实，所以真实 EnsRec 双路训练和模型评分没有开展。此前的静态审查和隔离环境探针见 [ID/Text 导出探针](id-text-export-probe.md)、[集成审计](integration-audit.md) 与 [训练前检查](pretraining-integration-check.md)。
 
-Train ID-only and Text-only independently only after establishing that their item-table rows represent the same items as the labels. Each route uses its own validation Recall@10 to select its checkpoint. Export vectors for the same validation and test events. Require identical event IDs, labels, and history lengths across routes, and require each route's validation/test candidate matrices to match. Beauty's raw data shows `items.id` in 1..12,101 and sequence IDs in 0..12,100. In each split, all 22,363 first-item texts match metadata ID `sequence_id + 1`, but the first items cover only 7,563 unique IDs (0–12,095). This does not verify the other catalog items; require a generation manifest plus source-order contract for full coverage. The frozen Text route projects a precomputed table directly. The author notebook first applies `.encode()` to an array; if fixed by extracting the scalar, its next cell indexes a 1-based dictionary from zero. Vector row semantics are unverified. Do not report fusion metrics until a per-row source-ID/text manifest verifies this mapping. The dynamic Text candidate path also adds two placeholders before using candidate IDs as matrix indices; it is a distinct path and must be checked separately.
+## 已完成的 Beauty CPU 代理实验
 
-The paper's normalized concatenation ranks items by `ID cosine + Text cosine`; this study writes it as `alpha * ID cosine + (1-alpha) * Text cosine`, with `alpha=0.5` giving the same ordering. Evaluate alpha on the grid 0.0, 0.1, …, 1.0. Choose the global alpha by validation Recall@10. Choose the short/long threshold from validation history lengths to balance group sizes, then choose one alpha per group using validation Recall@10. Break ties toward 0.5. Never route an event using whether either model actually hit its target.
+为在本机可运行的范围内先检查研究问题，后续改用 Beauty 数据做固定的 CPU 代理：仅用训练序列构造 ID 转移与流行度分数；用商品描述 TF-IDF 计算文本相似度；每条查询使用最多 19 个历史事件，对同一 12,101 商品候选集排序。原始序列商品 ID `i` 映射到元数据 ID `i+1`。由于两路分数尺度不同，先将每条查询的候选商品分数转成确定性的百分位排名，再按 `alpha * ID + (1-alpha) * Text` 融合。该排序方法不是 EnsRec 学习向量，也不是论文的 cosine 融合。
 
-Report ID, Text, equal fusion, global fusion, and history-aware fusion on the held-out test events. For each history cohort, also report equal fusion's added hits, lost hits, net hits, and the fraction of Text-only hits that equal fusion recovers. At one target per event, Recall@10 is Hit Rate@10. NDCG@10 describes rank within the top ten; Hit@1 is exploratory.
+初轮方案已书面记录：验证集选择历史长度中位数切点和全局 alpha，测试集只用于最终报告；初轮测试完成后，才追加了按验证集历史长度组分别选权重的探索。追加分析使用同一验证集、alpha 网格和切点规则，因此测试标签没有用于挑权重；但它是看过初轮测试后的探索，不是原方案预先规定的确认性分析。完整的代理方法与结果见 [Beauty 轻量探测计划](lightweight-probe-plan.md) 和 [README](../README.md)。
 
-## Interpretation rules
+## 公平比较与解释规则
 
-Inspect the validation cohort diagnosis before interpreting history-aware weights. Compare against both equal and global weights, not just ID-only. Report cohort denominators because validation and test contain adjacent events for the same users and have different history distributions. The visible history is capped at 19; the capped cohort conflates exact length 19 with longer histories. Check nearby weights and additional seeds before claiming a stable effect. Compare any improvement with the cost of computing and scoring both routes. A negative result is still a result; do not tune on test to rescue the hypothesis.
+- ID、Text 与融合必须使用相同事件、标签和候选商品；候选表语义或 ID 映射不清楚时，不解释模型评分。
+- 验证集负责选择全局或分组权重；测试集只报告选择后的结果。不能按某一路是否命中目标来决定该事件走哪一路。
+- 报告每组分母及融合相对 ID 的新增、丢失和净命中。每个事件只有一个目标时，Recall@10 等于 Hit Rate@10；NDCG@10 描述前十名中的排序位置，Hit@1 可作补充。
+- 测试用户在验证集与测试集对应相邻序列，组别分布会随可见历史长度变化。历史最多保留 19 个事件，长度 19 还包含更长的原始历史。
+- 单一 Beauty 切分只支持对该代理结果的描述。Bootstrap 区间反映该切分中的用户抽样不确定性，不代表模型或数据集间的不确定性。要声称稳定效果，还需邻近参数、额外随机种子或独立数据切分复核。
 
-## Current evidence boundary
+## 当前证据边界
 
-The evaluation implementation and synthetic tests are available, and both Beauty history lengths and raw item-ID relations have been audited. No trained two-route embeddings or real recommendation outcomes have been evaluated. The Text vector row mapping is unresolved, so the model-score pipeline is not ready for interpretation.
+现有数值是 Beauty CPU 代理结果；尚无真实 EnsRec 双路训练、学习向量导出或模型融合结果。补充诊断显示：按 Recall@10 选择的 `alpha=0.9` 提高覆盖，但全体 Hit@1 低于 ID，长组 NDCG@10 也略低；低、中、高目标频次组内，短组救回率仍较高；当前测试短组实际全是 4 件可见历史。另一个测试后诊断发现，Text top-10 经常含有可见历史商品，而目标在此前完整序列中都没出现，这些旧商品可能挤占新目标的位置。
+
+这些结果支持的仍是本切分内的描述：短组 ID 漏例更常被 Text 找回，但融合取舍与候选占位都需要结合目标场景解释。目标频次分组只用于测试后的诊断；ID 分数本身仍使用训练商品流行度回退。排除可见历史候选和对同分使用平均排名的敏感性对照完成前，不判断候选占位或商品 ID tie-break 对主结果的影响大小。不能据此推断 EnsRec 学习表征、论文方法、其他数据集或线上系统的收益。完整数值见 [补充诊断](beauty-followup-diagnostics.md) 与 [历史商品占位诊断](seen-item-diagnostic.md)。
