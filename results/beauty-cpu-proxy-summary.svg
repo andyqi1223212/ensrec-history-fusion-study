@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="570" viewBox="0 0 1000 570">
+<rect width="100%" height="100%" fill="#fff"/>
+<style>text{font-family:Arial,sans-serif;fill:#263238}.title{font-size:22px;font-weight:bold}.head{font-size:16px;font-weight:bold}.label{font-size:13px}.small{font-size:11px}</style>
+<text x="40" y="36" class="title">Beauty CPU proxy: next-item hit rates</text>
+<text x="40" y="59" class="small">Full 12,101-item catalog · rank-percentile fusion · not EnsRec training</text>
+<text x="68" y="87" class="head">Test Recall@10</text>
+<line x1="68" y1="270.0" x2="638" y2="270.0" stroke="#e2e7eb"/>
+<text x="58" y="274.0" text-anchor="end" class="small">0%</text>
+<line x1="68" y1="237.0" x2="638" y2="237.0" stroke="#e2e7eb"/>
+<text x="58" y="241.0" text-anchor="end" class="small">2%</text>
+<line x1="68" y1="204.0" x2="638" y2="204.0" stroke="#e2e7eb"/>
+<text x="58" y="208.0" text-anchor="end" class="small">4%</text>
+<line x1="68" y1="171.0" x2="638" y2="171.0" stroke="#e2e7eb"/>
+<text x="58" y="175.0" text-anchor="end" class="small">6%</text>
+<line x1="68" y1="138.0" x2="638" y2="138.0" stroke="#e2e7eb"/>
+<text x="58" y="142.0" text-anchor="end" class="small">8%</text>
+<line x1="68" y1="105.0" x2="638" y2="105.0" stroke="#e2e7eb"/>
+<text x="58" y="109.0" text-anchor="end" class="small">10%</text>
+<rect x="96" y="185.7" width="82" height="84.3" rx="4" fill="#52647a"/>
+<text x="137.0" y="178.7" text-anchor="middle" class="small">5.1%</text>
+<text x="137.0" y="288" text-anchor="middle" class="small">ID</text>
+<rect x="200" y="201.8" width="82" height="68.2" rx="4" fill="#bd6b43"/>
+<text x="241.0" y="194.8" text-anchor="middle" class="small">4.1%</text>
+<text x="241.0" y="288" text-anchor="middle" class="small">Text</text>
+<rect x="304" y="184.1" width="82" height="85.9" rx="4" fill="#2b8a78"/>
+<text x="345.0" y="177.1" text-anchor="middle" class="small">5.2%</text>
+<text x="345.0" y="288" text-anchor="middle" class="small">Equal</text>
+<rect x="408" y="173.2" width="82" height="96.8" rx="4" fill="#7556a5"/>
+<text x="449.0" y="166.2" text-anchor="middle" class="small">5.9%</text>
+<text x="449.0" y="288" text-anchor="middle" class="small">Val-selected α=0.9</text>
+<text x="700" y="87" class="head">Text hit rate on ID misses</text>
+<rect x="722" y="197.9" width="70" height="72.1" rx="4" fill="#bd6b43"/>
+<text x="757" y="190.9" text-anchor="middle" class="small">4.4%</text>
+<text x="757" y="288" text-anchor="middle" class="small">Short</text>
+<text x="757" y="305" text-anchor="middle" class="small">users=7162</text>
+<text x="757" y="321" text-anchor="middle" class="small">misses=6776</text>
+<rect x="834" y="227.7" width="70" height="42.3" rx="4" fill="#bd6b43"/>
+<text x="869" y="220.7" text-anchor="middle" class="small">2.6%</text>
+<text x="869" y="288" text-anchor="middle" class="small">Long</text>
+<text x="869" y="305" text-anchor="middle" class="small">users=15201</text>
+<text x="869" y="321" text-anchor="middle" class="small">misses=14444</text>
+<text x="40" y="340" class="head">Complementarity and controls</text>
+<text x="48" y="376" class="label">Short − long Text rescue rate: +1.81 pp (95% CI +1.25 to +2.35 pp)</text>
+<line x1="48" y1="388" x2="950" y2="388" stroke="#edf0f2"/>
+<text x="48" y="410" class="label">Equal fusion added/lost/net hits vs ID: 536 / 515 / +21</text>
+<line x1="48" y1="422" x2="950" y2="422" stroke="#edf0f2"/>
+<text x="48" y="444" class="label">Validation-weighted fusion net hits vs ID: +169</text>
+<line x1="48" y1="456" x2="950" y2="456" stroke="#edf0f2"/>
+<text x="48" y="478" class="label">Shuffled candidate-text equal-fusion Recall@10 (alignment negative control): 0.7%</text>
+<line x1="48" y1="490" x2="950" y2="490" stroke="#edf0f2"/>
+<text x="48" y="512" class="label">Equal fusion retained text-only hits: 168/666 (25.2%)</text>
+<text x="40" y="535" class="small">Scores are aggregate proxy results. Candidate-side text is shuffled only for the negative control; no user-level rows are included.</text>
+</svg>
