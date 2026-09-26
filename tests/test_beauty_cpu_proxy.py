@@ -12,6 +12,8 @@ from scripts.beauty_cpu_proxy import (
     bootstrap_rescue_difference,
     fit_id_model,
     rank_percentiles,
+    route_cohort_hits,
+    select_validation_alpha_by_cohort,
     shuffle_candidate_text,
     topk_indices,
     validate_splits,
@@ -86,6 +88,24 @@ class BeautyCpuProxyTests(unittest.TestCase):
                          report_b["protocol"]["validation_cutoff"])
         self.assertEqual(report_a["validation"]["recall_at_10_by_alpha"],
                          report_b["validation"]["recall_at_10_by_alpha"])
+        self.assertEqual(report_a["validation"]["exploratory_conditional_alpha"],
+                         report_b["validation"]["exploratory_conditional_alpha"])
+        self.assertIn("equal-alpha-0.5", report_a["test"]["metrics_by_cohort"]["all"])
+        self.assertIn("validation-selected-global", report_a["test"]["metrics_by_cohort"]["all"])
+
+    def test_cohort_selection_is_validation_only_and_routing_uses_cutoff_mask(self):
+        hits = {
+            0.0: np.array([True, True, False, False]),
+            0.5: np.array([True, False, True, False]),
+            1.0: np.array([False, False, True, True]),
+        }
+        short = np.array([True, True, False, False])
+        alpha = select_validation_alpha_by_cohort(hits, short)
+        self.assertEqual(alpha, {"short": 0.0, "long": 1.0})
+        test_short_hits = {0.0: np.array([False, True, True, True]),
+                           1.0: np.array([True, True, False, False])}
+        routed = route_cohort_hits(test_short_hits, alpha, short)
+        np.testing.assert_array_equal(routed, [False, True, False, False])
 
     def test_negative_control_only_permutates_candidate_side_deterministically(self):
         candidates = csr_matrix(np.arange(20).reshape(5, 4))

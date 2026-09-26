@@ -20,6 +20,7 @@
     "catalog_metadata_ids": "1..N; candidate_index=metadata_id-1",
     "empty_test_text_profiles": 0,
     "empty_validation_text_profiles": 0,
+    "exploratory_followup": "after initial proxy results; validation-only short/long alpha selection, routed by visible history length; not confirmatory or preregistered",
     "fusion": "deterministic per-query candidate rank percentiles, higher is better; score ties broken by candidate ID; alpha*ID_percentile + (1-alpha)*Text_percentile",
     "id_model": "train-only item-to-next-item conditional transition probabilities averaged over available sources in the latest 19 history items; fixed 0.1 train-popularity backoff; when no source has transitions use popularity alone",
     "id_tiebreak": "train-only item popularity descending, then candidate ID ascending",
@@ -143,6 +144,92 @@
         "recovered_by_equal": 69,
         "recovery_rate": 0.23310810810810811,
         "text_only_hits": 296
+      }
+    },
+    "exploratory_conditional_fusion": {
+      "all": {
+        "conditional_vs_ID": {
+          "added_hits": 501,
+          "lost_hits": 332,
+          "net_hits": 169,
+          "recall@10_net_gain": 0.0075571256092653045
+        },
+        "conditional_vs_equal": {
+          "added_hits": 302,
+          "lost_hits": 154,
+          "net_hits": 148,
+          "recall@10_net_gain": 0.006618074498054823
+        },
+        "conditional_vs_global": {
+          "added_hits": 0,
+          "lost_hits": 0,
+          "net_hits": 0,
+          "recall@10_net_gain": 0.0
+        },
+        "conditional_vs_global_paired_user_bootstrap": {
+          "bootstrap_replicates": 2000,
+          "bootstrap_seed": 20260926,
+          "mean_recall_difference": 0.0,
+          "user_bootstrap_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "metrics": {
+          "hits": 1312,
+          "recall@10": 0.05866833609086437,
+          "users": 22363
+        }
+      },
+      "long": {
+        "conditional_vs_ID": {
+          "added_hits": 320,
+          "lost_hits": 232,
+          "net_hits": 88,
+          "recall@10_net_gain": 0.005789092822840603
+        },
+        "conditional_vs_equal": {
+          "added_hits": 223,
+          "lost_hits": 99,
+          "net_hits": 124,
+          "recall@10_net_gain": 0.008157358068548122
+        },
+        "conditional_vs_global": {
+          "added_hits": 0,
+          "lost_hits": 0,
+          "net_hits": 0,
+          "recall@10_net_gain": 0.0
+        },
+        "metrics": {
+          "hits": 845,
+          "recall@10": 0.055588448128412606,
+          "users": 15201
+        }
+      },
+      "short": {
+        "conditional_vs_ID": {
+          "added_hits": 181,
+          "lost_hits": 100,
+          "net_hits": 81,
+          "recall@10_net_gain": 0.011309690030717677
+        },
+        "conditional_vs_equal": {
+          "added_hits": 79,
+          "lost_hits": 55,
+          "net_hits": 24,
+          "recall@10_net_gain": 0.003351019268360793
+        },
+        "conditional_vs_global": {
+          "added_hits": 0,
+          "lost_hits": 0,
+          "net_hits": 0,
+          "recall@10_net_gain": 0.0
+        },
+        "metrics": {
+          "hits": 467,
+          "recall@10": 0.0652052499301871,
+          "users": 7162
+        }
       }
     },
     "fusion_added_lost_net_hits": {
@@ -281,6 +368,18 @@
     }
   },
   "validation": {
+    "exploratory_conditional_alpha": {
+      "long": {
+        "recall_at_10": 0.06721311475409836,
+        "selected_alpha": 0.9,
+        "users": 10980
+      },
+      "short": {
+        "recall_at_10": 0.08556619520337345,
+        "selected_alpha": 0.9,
+        "users": 11383
+      }
+    },
     "recall_at_10_by_alpha": {
       "0.0": {
         "hits": 1116,

@@ -6,9 +6,9 @@ In next-item recommendation, users with little history may have fewer useful ID 
 
 ## Test
 
-For each user, predict the final item in the validation and test sequence from the preceding events, capped at 19 visible history items. Fit ID transitions and popularity on training; fit TF-IDF on catalog text. Validation selects a median history-length cutoff and one global ID weight from a fixed grid; test is used once for reporting. The main comparison is Text top-10 hit rate among ID top-10 misses, short versus long histories. “Short” and “long” are cohorts split at the validation-selected cutoff.
+For each user, predict the final item in the validation and test sequence from the preceding events, capped at 19 visible history items. Fit ID transitions and popularity on training; fit TF-IDF on catalog text. Validation selects a median history-length cutoff and one global ID weight from a fixed grid. Test labels never select cutoff/weights; this follow-up was decided after the first test was inspected. The main comparison is Text top-10 hit rate among ID top-10 misses, short versus long histories. “Short” and “long” are cohorts split at the validation-selected cutoff.
 
-This was a fixed analysis protocol, not a preregistered study. ID transition scores and TF-IDF similarities have different scales, so each is converted to a deterministic within-query candidate rank percentile before fusion. Equal fusion uses alpha 0.5; the validation-selected alpha is 0.9. This percentile fusion is a CPU proxy and differs from the EnsRec paper's cosine ensemble.
+The initial analysis followed a written protocol; this was not a preregistered study. ID transition scores and TF-IDF similarities have different scales, so each is converted to a deterministic within-query candidate rank percentile before fusion. Equal fusion uses alpha 0.5; the validation-selected alpha is 0.9. This percentile fusion is a CPU proxy and differs from the EnsRec paper's cosine ensemble.
 
 ## Finding
 
@@ -24,6 +24,10 @@ This was a fixed analysis protocol, not a preregistered study. ID transition sco
 Short minus long Text rescue was **+1.81 percentage points** (user-bootstrap 95% CI: **+1.25 to +2.35 pp**, 2,000 replicates). The measured complementarity is larger for the short-history cohort in this Beauty test split. Equal fusion's net change is only **+21 hits**: it recovers 168 of 666 Text-only wins, while losing 515 ID hits. This small aggregate difference does not establish a reliable uplift.
 
 In the fixed-seed control, shuffling candidate-side text vectors reduced Text-only Recall@10 to **0.085%**, close to the uniform-candidate rate of **0.083%** (10/12,101). This is a sanity check that the observed text matches depend on item-text alignment, not evidence of generalization.
+
+### Exploratory follow-up: validation-selected cohort weights
+
+After inspecting the initial test, a follow-up selected short/long weights independently using only each cohort's validation Recall@10, with the same cutoff, alpha grid, and tie-break. Both cohorts selected alpha **0.9** (short validation n=11,383; long n=10,980), so routed test predictions exactly matched the global-alpha result: **1,312/22,363** hits, with **0 added / 0 lost / 0 net** versus global (paired user-bootstrap 95% CI for Recall@10 difference: **0.00 to 0.00 pp**). Test Recall@10 was 6.52% short and 5.56% long. Since each user's test sequence has one more item than validation, the same cutoff moves users across the short/long boundary: test short n=7,162, versus validation short n=11,383. This is a post hoc exploratory check, not preregistered or confirmatory evidence; the unchanged result says cohort-specific validation tuning did not improve over the global choice in this run.
 
 ## What it means
 

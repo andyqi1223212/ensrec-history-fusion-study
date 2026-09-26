@@ -272,6 +272,35 @@ def select_validation_alpha(validation_hits: dict[float, np.ndarray]) -> float:
     ))
 
 
+def select_validation_alpha_by_cohort(validation_hits: dict[float, np.ndarray],
+                                      short_mask: np.ndarray) -> dict[str, float]:
+    return {
+        "short": select_validation_alpha({a: hits[short_mask] for a, hits in validation_hits.items()}),
+        "long": select_validation_alpha({a: hits[~short_mask] for a, hits in validation_hits.items()}),
+    }
+
+
+def route_cohort_hits(fusion_hits: dict[float, np.ndarray], alphas: dict[str, float],
+                      short_mask: np.ndarray) -> np.ndarray:
+    routed = np.zeros(len(short_mask), dtype=bool)
+    routed[short_mask] = fusion_hits[alphas["short"]][short_mask]
+    routed[~short_mask] = fusion_hits[alphas["long"]][~short_mask]
+    return routed
+
+
+def bootstrap_paired_hit_difference(candidate_hits: np.ndarray, baseline_hits: np.ndarray,
+                                    replicates: int = BOOTSTRAP_REPLICATES,
+                                    seed: int = BOOTSTRAP_SEED) -> dict:
+    differences = candidate_hits.astype(np.float64) - baseline_hits.astype(np.float64)
+    rng = np.random.default_rng(seed)
+    samples = np.empty(replicates, dtype=np.float64)
+    for i in range(replicates):
+        samples[i] = differences[rng.integers(0, len(differences), size=len(differences))].mean()
+    return {"mean_recall_difference": float(differences.mean()),
+            "user_bootstrap_95ci": [float(x) for x in np.quantile(samples, [0.025, 0.975])],
+            "bootstrap_replicates": int(replicates), "bootstrap_seed": int(seed)}
+
+
 def choose_validation_cutoff(validation_lengths: np.ndarray) -> tuple[int, int]:
     cutoff = int(np.median(validation_lengths))
     n_short = int(np.sum(validation_lengths <= cutoff))
@@ -365,8 +394,9 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
     val_result = val_bundle["variants"]["aligned"]
     selected_alpha = select_validation_alpha(val_result["fusion"])
     val_short = validation_lengths <= cutoff
+    conditional_alphas = select_validation_alpha_by_cohort(val_result["fusion"], val_short)
     test_short = test_lengths <= cutoff
-    test_weights = tuple(sorted({0.0, 0.5, selected_alpha}))
+    test_weights = tuple(sorted({0.0, 0.5, selected_alpha, *conditional_alphas.values()}))
     control_matrix, _ = shuffle_candidate_text(text_matrix, n_items, NEGATIVE_CONTROL_SEED)
     test_bundle = predict_hits(test_examples, text_matrix, transitions, popularity, test_weights,
                                candidate_matrices={"aligned": text_matrix,
@@ -374,6 +404,7 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
     test_result = test_bundle["variants"]["aligned"]
     control_result = test_bundle["variants"]["candidate_text_permuted"]
     test_id_hits = test_bundle["id"]
+    conditional_hits = route_cohort_hits(test_result["fusion"], conditional_alphas, test_short)
 
     val_grid = {str(a): _metric(val_result["fusion"][a], np.ones(len(validation_examples), dtype=bool))
                 for a in ALPHAS}
@@ -394,6 +425,17 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
         }
         for cohort, mask in cohorts.items()
     }
+    conditional_comparisons = {}
+    for cohort, mask in cohorts.items():
+        conditional_comparisons[cohort] = {
+            "metrics": _metric(conditional_hits, mask),
+            "conditional_vs_global": _gain(test_result["fusion"][selected_alpha], conditional_hits, mask),
+            "conditional_vs_equal": _gain(test_result["fusion"][0.5], conditional_hits, mask),
+            "conditional_vs_ID": _gain(test_id_hits, conditional_hits, mask),
+        }
+    conditional_comparisons["all"]["conditional_vs_global_paired_user_bootstrap"] = \
+        bootstrap_paired_hit_difference(conditional_hits, test_result["fusion"][selected_alpha],
+                                        bootstrap_replicates)
     rescue = bootstrap_rescue_difference(test_id_hits, test_result["text"],
                                          test_short, bootstrap_replicates)
     equal_recovery = {
@@ -428,6 +470,7 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
             "validation_short_users": val_short_count,
             "validation_long_users": int((~val_short).sum()),
             "weight_selection": "validation Recall@10 only; ties prefer alpha nearest 0.5, then larger ID alpha",
+            "exploratory_followup": "after initial proxy results; validation-only short/long alpha selection, routed by visible history length; not confirmatory or preregistered",
             "test_used_for_selection": False,
             "primary_test_metric": "Text top-10 hit rate among ID top-10 misses, short minus long; user bootstrap 95% CI",
             "negative_control": "permute candidate-side catalog text vectors against item IDs with fixed seed; keep user history text profiles real; never used for validation selection",
@@ -441,8 +484,14 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES) -> dic
             "empty_validation_text_profiles": val_bundle["empty_history_text_profiles"],
             "empty_test_text_profiles": test_bundle["empty_history_text_profiles"],
         },
-        "validation": {"selected_alpha": selected_alpha, "recall_at_10_by_alpha": val_grid},
+        "validation": {"selected_alpha": selected_alpha, "recall_at_10_by_alpha": val_grid,
+                        "exploratory_conditional_alpha": {
+                            cohort: {"selected_alpha": alpha,
+                                     "users": int((val_short if cohort == "short" else ~val_short).sum()),
+                                     "recall_at_10": float(val_result["fusion"][alpha][val_short if cohort == "short" else ~val_short].mean())}
+                            for cohort, alpha in conditional_alphas.items()}},
         "test": {"metrics_by_cohort": metrics, "fusion_added_lost_net_hits": gains,
+                 "exploratory_conditional_fusion": conditional_comparisons,
                  "equal_fusion_recovery_of_text_only_hits": equal_recovery,
                  "text_rescue_among_id_misses": rescue,
                  "candidate_text_permutation_control": control_metrics},
