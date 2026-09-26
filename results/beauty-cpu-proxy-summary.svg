@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="570" viewBox="0 0 1000 570">
 <rect width="100%" height="100%" fill="#fff"/>
-<style>text{font-family:Arial,sans-serif;fill:#263238}.title{font-size:22px;font-weight:bold}.head{font-size:16px;font-weight:bold}.label{font-size:13px}.small{font-size:11px}</style>
-<text x="40" y="36" class="title">Beauty CPU proxy: next-item hit rates</text>
-<text x="40" y="59" class="small">Full 12,101-item catalog · rank-percentile fusion · not EnsRec training</text>
-<text x="68" y="87" class="head">Test Recall@10</text>
+<style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif;fill:#263238}.title{font-size:22px;font-weight:bold}.head{font-size:16px;font-weight:bold}.label{font-size:13px}.small{font-size:11px}</style>
+<text x="40" y="36" class="title">Beauty CPU代理：下一商品命中率</text>
+<text x="40" y="59" class="small">目录 12,101 项 · 全目录候选 · 文本同分处理：按商品ID · 可见历史候选排除：否 · 非EnsRec训练</text>
+<text x="68" y="87" class="head">测试集 Recall@10</text>
 <line x1="68" y1="270.0" x2="638" y2="270.0" stroke="#e2e7eb"/>
 <text x="58" y="274.0" text-anchor="end" class="small">0%</text>
 <line x1="68" y1="237.0" x2="638" y2="237.0" stroke="#e2e7eb"/>
@@ -24,30 +24,30 @@
 <text x="241.0" y="288" text-anchor="middle" class="small">Text</text>
 <rect x="304" y="184.1" width="82" height="85.9" rx="4" fill="#2b8a78"/>
 <text x="345.0" y="177.1" text-anchor="middle" class="small">5.2%</text>
-<text x="345.0" y="288" text-anchor="middle" class="small">Equal</text>
+<text x="345.0" y="288" text-anchor="middle" class="small">等权</text>
 <rect x="408" y="173.2" width="82" height="96.8" rx="4" fill="#7556a5"/>
 <text x="449.0" y="166.2" text-anchor="middle" class="small">5.9%</text>
-<text x="449.0" y="288" text-anchor="middle" class="small">Val-selected α=0.9</text>
-<text x="700" y="87" class="head">Text hit rate on ID misses</text>
+<text x="449.0" y="288" text-anchor="middle" class="small">全局α=0.9</text>
+<text x="700" y="87" class="head">ID未命中时Text命中率</text>
 <rect x="722" y="197.9" width="70" height="72.1" rx="4" fill="#bd6b43"/>
 <text x="757" y="190.9" text-anchor="middle" class="small">4.4%</text>
-<text x="757" y="288" text-anchor="middle" class="small">Short</text>
-<text x="757" y="305" text-anchor="middle" class="small">users=7162</text>
-<text x="757" y="321" text-anchor="middle" class="small">misses=6776</text>
+<text x="757" y="288" text-anchor="middle" class="small">短历史</text>
+<text x="757" y="305" text-anchor="middle" class="small">用户 7162</text>
+<text x="757" y="321" text-anchor="middle" class="small">ID未命中 6776</text>
 <rect x="834" y="227.7" width="70" height="42.3" rx="4" fill="#bd6b43"/>
 <text x="869" y="220.7" text-anchor="middle" class="small">2.6%</text>
-<text x="869" y="288" text-anchor="middle" class="small">Long</text>
-<text x="869" y="305" text-anchor="middle" class="small">users=15201</text>
-<text x="869" y="321" text-anchor="middle" class="small">misses=14444</text>
-<text x="40" y="340" class="head">Complementarity and controls</text>
-<text x="48" y="376" class="label">Short − long Text rescue rate: +1.81 pp (95% CI +1.25 to +2.35 pp)</text>
+<text x="869" y="288" text-anchor="middle" class="small">长历史</text>
+<text x="869" y="305" text-anchor="middle" class="small">用户 15201</text>
+<text x="869" y="321" text-anchor="middle" class="small">ID未命中 14444</text>
+<text x="40" y="340" class="head">互补性与对照</text>
+<text x="48" y="376" class="label">短减长 Text补救率：+1.81 pp (95% CI +1.25 to +2.35 pp)</text>
 <line x1="48" y1="388" x2="950" y2="388" stroke="#edf0f2"/>
-<text x="48" y="410" class="label">Equal fusion added/lost/net hits vs ID: 536 / 515 / +21</text>
+<text x="48" y="410" class="label">等权相对ID新增/丢失/净命中：536 / 515 / +21</text>
 <line x1="48" y1="422" x2="950" y2="422" stroke="#edf0f2"/>
-<text x="48" y="444" class="label">Validation-weighted fusion net hits vs ID: +169</text>
+<text x="48" y="444" class="label">验证集选择权重相对ID净增命中：+169</text>
 <line x1="48" y1="456" x2="950" y2="456" stroke="#edf0f2"/>
-<text x="48" y="478" class="label">Shuffled candidate-text equal-fusion Recall@10 (alignment negative control): 0.7%</text>
+<text x="48" y="478" class="label">候选侧文本置乱后等权Recall@10（对齐负控）：0.7%</text>
 <line x1="48" y1="490" x2="950" y2="490" stroke="#edf0f2"/>
-<text x="48" y="512" class="label">Equal fusion retained text-only hits: 168/666 (25.2%)</text>
-<text x="40" y="535" class="small">Scores are aggregate proxy results. Candidate-side text is shuffled only for the negative control; no user-level rows are included.</text>
+<text x="48" y="512" class="label">等权保留Text独有命中：168/666 (25.2%)</text>
+<text x="40" y="535" class="small">仅展示聚合代理结果；文本置乱只用于负控，不含逐用户记录。</text>
 </svg>

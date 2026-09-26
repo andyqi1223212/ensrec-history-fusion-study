@@ -1,0 +1,943 @@
+{
+  "protocol": {
+    "alpha_grid": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "bootstrap_replicates": 2000,
+    "bootstrap_seed": 20260926,
+    "candidate_count": 12101,
+    "candidate_count_scope": "catalog inventory size; per-query eligible count may be smaller when visible-history exclusion is enabled",
+    "candidate_sequence_ids": "0..N-1",
+    "catalog_metadata_ids": "1..N; candidate_index=metadata_id-1",
+    "eligible_candidate_counts": {
+      "test": {
+        "maximum": 12101,
+        "mean": 12101.0,
+        "minimum": 12101
+      },
+      "validation": {
+        "maximum": 12101,
+        "mean": 12101.0,
+        "minimum": 12101
+      }
+    },
+    "empty_test_text_profiles": 0,
+    "empty_validation_text_profiles": 0,
+    "evaluation_test_events_retained": {
+      "test": 22363,
+      "validation": 22363
+    },
+    "exclude_visible_history_candidates": false,
+    "exploratory_followup": "after initial proxy results; validation-only short/long alpha selection, routed by visible history length; not confirmatory or preregistered",
+    "fusion": "alpha*ID_percentile + (1-alpha)*Text_percentile; final fused-score ties break by candidate ID; Text percentile tie handling is controlled by text_percentile_tie_policy",
+    "id_model": "train-only item-to-next-item conditional transition probabilities averaged over available sources in the latest 19 history items; fixed 0.1 train-popularity backoff; when no source has transitions use popularity alone",
+    "id_tiebreak": "train-only item popularity descending, then candidate ID ascending",
+    "negative_control": "permute candidate-side catalog text vectors against item IDs with fixed seed; keep user history text profiles real; never used for validation selection",
+    "negative_control_seed": 2026,
+    "primary_test_metric": "Text top-10 hit rate among ID top-10 misses, short minus long; user bootstrap 95% CI",
+    "repeat_targets_in_visible_history": {
+      "test": 0,
+      "validation": 0
+    },
+    "selected_alpha_is_id_weight": true,
+    "short_rule": "visible history length <= validation median cutoff",
+    "target": "last item in evaluation/testing record; exactly one target per user",
+    "target_frequency_diagnostic": "post hoc only; bands use training catalog event-frequency tertile cutpoints and do not route prediction",
+    "test_used_for_selection": false,
+    "text_model": "catalog-only scikit-learn TfidfVectorizer: lowercase, unicode accent stripping, sublinear TF, smooth IDF, L2 normalization, min_df=2, max_df=0.85; query is normalized sum of visible-history item vectors",
+    "text_percentile_tie_policy": "average",
+    "tfidf_catalog_nonzero_entries": 196355,
+    "tfidf_vocabulary_size": 5750,
+    "training_model_counts": {
+      "training_events": 153776,
+      "training_transitions": 131413,
+      "unique_transition_edges": 114582
+    },
+    "validation_cutoff": 4,
+    "validation_long_users": 10980,
+    "validation_short_users": 11383,
+    "validation_test_split_checks": {
+      "sequence_lengths": {
+        "evaluation": {
+          "maximum": 203,
+          "mean": 7.8764,
+          "minimum": 4
+        },
+        "testing": {
+          "maximum": 204,
+          "mean": 8.8764,
+          "minimum": 5
+        },
+        "training": {
+          "maximum": 202,
+          "mean": 6.8764,
+          "minimum": 3
+        }
+      },
+      "users": 22363
+    },
+    "visible_history": "sequence[-20:-1], maximum 19 events; target excluded",
+    "weight_selection": "validation Recall@10 only; ties prefer alpha nearest 0.5, then larger ID alpha"
+  },
+  "runtime": {
+    "numpy": "2.4.4",
+    "python": "3.13.3",
+    "scikit_learn": "1.9.1",
+    "scipy": "1.18.1"
+  },
+  "scope": "Beauty CPU proxy experiment; not EnsRec training or a paper reproduction",
+  "test": {
+    "candidate_text_permutation_control": {
+      "Text-only": {
+        "all": {
+          "hits": 19,
+          "recall@10": 0.0008496176720475786,
+          "users": 22363
+        },
+        "long": {
+          "hits": 14,
+          "recall@10": 0.0009209920399973686,
+          "users": 15201
+        },
+        "short": {
+          "hits": 5,
+          "recall@10": 0.0006981290142418319,
+          "users": 7162
+        }
+      },
+      "equal-alpha-0.5": {
+        "all": {
+          "hits": 163,
+          "recall@10": 0.007288825291776596,
+          "users": 22363
+        },
+        "long": {
+          "hits": 120,
+          "recall@10": 0.00789421748569173,
+          "users": 15201
+        },
+        "short": {
+          "hits": 43,
+          "recall@10": 0.006003909522479754,
+          "users": 7162
+        }
+      },
+      "validation-selected-global-alpha": {
+        "alpha": 0.9,
+        "metrics": {
+          "all": {
+            "hits": 364,
+            "recall@10": 0.01627688592764835,
+            "users": 22363
+          },
+          "long": {
+            "hits": 252,
+            "recall@10": 0.016577856719952634,
+            "users": 15201
+          },
+          "short": {
+            "hits": 112,
+            "recall@10": 0.015638089919017033,
+            "users": 7162
+          }
+        }
+      }
+    },
+    "equal_fusion_recovery_of_text_only_hits": {
+      "all": {
+        "recovered_by_equal": 168,
+        "recovery_rate": 0.25225225225225223,
+        "text_only_hits": 666
+      },
+      "long": {
+        "recovered_by_equal": 99,
+        "recovery_rate": 0.26756756756756755,
+        "text_only_hits": 370
+      },
+      "short": {
+        "recovered_by_equal": 69,
+        "recovery_rate": 0.23310810810810811,
+        "text_only_hits": 296
+      }
+    },
+    "exploratory_conditional_fusion": {
+      "all": {
+        "conditional_vs_ID": {
+          "added_hits": 501,
+          "lost_hits": 332,
+          "net_hits": 169,
+          "recall@10_net_gain": 0.0075571256092653045
+        },
+        "conditional_vs_equal": {
+          "added_hits": 302,
+          "lost_hits": 154,
+          "net_hits": 148,
+          "recall@10_net_gain": 0.006618074498054823
+        },
+        "conditional_vs_global": {
+          "added_hits": 0,
+          "lost_hits": 0,
+          "net_hits": 0,
+          "recall@10_net_gain": 0.0
+        },
+        "conditional_vs_global_paired_user_bootstrap": {
+          "bootstrap_replicates": 2000,
+          "bootstrap_seed": 20260926,
+          "mean_recall_difference": 0.0,
+          "user_bootstrap_95ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "metrics": {
+          "hits": 1312,
+          "recall@10": 0.05866833609086437,
+          "users": 22363
+        }
+      },
+      "long": {
+        "conditional_vs_ID": {
+          "added_hits": 320,
+          "lost_hits": 232,
+          "net_hits": 88,
+          "recall@10_net_gain": 0.005789092822840603
+        },
+        "conditional_vs_equal": {
+          "added_hits": 223,
+          "lost_hits": 99,
+          "net_hits": 124,
+          "recall@10_net_gain": 0.008157358068548122
+        },
+        "conditional_vs_global": {
+          "added_hits": 0,
+          "lost_hits": 0,
+          "net_hits": 0,
+          "recall@10_net_gain": 0.0
+        },
+        "metrics": {
+          "hits": 845,
+          "recall@10": 0.055588448128412606,
+          "users": 15201
+        }
+      },
+      "short": {
+        "conditional_vs_ID": {
+          "added_hits": 181,
+          "lost_hits": 100,
+          "net_hits": 81,
+          "recall@10_net_gain": 0.011309690030717677
+        },
+        "conditional_vs_equal": {
+          "added_hits": 79,
+          "lost_hits": 55,
+          "net_hits": 24,
+          "recall@10_net_gain": 0.003351019268360793
+        },
+        "conditional_vs_global": {
+          "added_hits": 0,
+          "lost_hits": 0,
+          "net_hits": 0,
+          "recall@10_net_gain": 0.0
+        },
+        "metrics": {
+          "hits": 467,
+          "recall@10": 0.0652052499301871,
+          "users": 7162
+        }
+      }
+    },
+    "fusion_added_lost_net_hits": {
+      "all": {
+        "equal_vs_ID": {
+          "added_hits": 536,
+          "lost_hits": 515,
+          "net_hits": 21,
+          "recall@10_net_gain": 0.0009390511112104816
+        },
+        "global_vs_ID": {
+          "added_hits": 501,
+          "lost_hits": 332,
+          "net_hits": 169,
+          "recall@10_net_gain": 0.0075571256092653045
+        }
+      },
+      "long": {
+        "equal_vs_ID": {
+          "added_hits": 325,
+          "lost_hits": 361,
+          "net_hits": -36,
+          "recall@10_net_gain": -0.002368265245707519
+        },
+        "global_vs_ID": {
+          "added_hits": 320,
+          "lost_hits": 232,
+          "net_hits": 88,
+          "recall@10_net_gain": 0.005789092822840603
+        }
+      },
+      "short": {
+        "equal_vs_ID": {
+          "added_hits": 211,
+          "lost_hits": 154,
+          "net_hits": 57,
+          "recall@10_net_gain": 0.007958670762356884
+        },
+        "global_vs_ID": {
+          "added_hits": 181,
+          "lost_hits": 100,
+          "net_hits": 81,
+          "recall@10_net_gain": 0.011309690030717677
+        }
+      }
+    },
+    "metrics_by_cohort": {
+      "all": {
+        "ID-only": {
+          "hits": 1143,
+          "recall@10": 0.05111121048159907,
+          "users": 22363
+        },
+        "Text-only": {
+          "hits": 924,
+          "recall@10": 0.04131824889326119,
+          "users": 22363
+        },
+        "equal-alpha-0.5": {
+          "hits": 1164,
+          "recall@10": 0.05205026159280955,
+          "users": 22363
+        },
+        "validation-selected-global": {
+          "hits": 1312,
+          "recall@10": 0.05866833609086437,
+          "users": 22363
+        }
+      },
+      "long": {
+        "ID-only": {
+          "hits": 757,
+          "recall@10": 0.049799355305572,
+          "users": 15201
+        },
+        "Text-only": {
+          "hits": 520,
+          "recall@10": 0.034208275771330836,
+          "users": 15201
+        },
+        "equal-alpha-0.5": {
+          "hits": 721,
+          "recall@10": 0.047431090059864484,
+          "users": 15201
+        },
+        "validation-selected-global": {
+          "hits": 845,
+          "recall@10": 0.055588448128412606,
+          "users": 15201
+        }
+      },
+      "short": {
+        "ID-only": {
+          "hits": 386,
+          "recall@10": 0.053895559899469425,
+          "users": 7162
+        },
+        "Text-only": {
+          "hits": 404,
+          "recall@10": 0.05640882435074002,
+          "users": 7162
+        },
+        "equal-alpha-0.5": {
+          "hits": 443,
+          "recall@10": 0.061854230661826305,
+          "users": 7162
+        },
+        "validation-selected-global": {
+          "hits": 467,
+          "recall@10": 0.0652052499301871,
+          "users": 7162
+        }
+      }
+    },
+    "posthoc_alternative_explanations": {
+      "target_item_training_frequency_tertiles": {
+        "bands": {
+          "high": {
+            "long": {
+              "hit_rate": 0.02004981320049813,
+              "id_top10_misses": 8030,
+              "text_hits_among_id_misses": 161,
+              "users": 8614
+            },
+            "short": {
+              "hit_rate": 0.032144786601836846,
+              "id_top10_misses": 3702,
+              "text_hits_among_id_misses": 119,
+              "users": 4009
+            },
+            "short_minus_long": 0.012094973401338714,
+            "target_frequency_range": {
+              "maximum": 369,
+              "minimum": 10
+            }
+          },
+          "low": {
+            "long": {
+              "hit_rate": 0.03618817852834741,
+              "id_top10_misses": 4145,
+              "text_hits_among_id_misses": 150,
+              "users": 4249
+            },
+            "short": {
+              "hit_rate": 0.06230366492146597,
+              "id_top10_misses": 1910,
+              "text_hits_among_id_misses": 119,
+              "users": 1948
+            },
+            "short_minus_long": 0.02611548639311856,
+            "target_frequency_range": {
+              "maximum": 5,
+              "minimum": 0
+            }
+          },
+          "middle": {
+            "long": {
+              "hit_rate": 0.02600264433671221,
+              "id_top10_misses": 2269,
+              "text_hits_among_id_misses": 59,
+              "users": 2338
+            },
+            "short": {
+              "hit_rate": 0.04982817869415808,
+              "id_top10_misses": 1164,
+              "text_hits_among_id_misses": 58,
+              "users": 1205
+            },
+            "short_minus_long": 0.02382553435744587,
+            "target_frequency_range": {
+              "maximum": 9,
+              "minimum": 6
+            }
+          }
+        },
+        "catalog_items_by_band": {
+          "high": 4006,
+          "low": 4781,
+          "middle": 3314
+        },
+        "cutpoints_repeated": false,
+        "difference_definition": "short text-rescue rate minus long text-rescue rate; null if either ID-miss denominator is empty",
+        "empty_bands": [],
+        "lower_cutpoint": 5.0,
+        "method": "catalog item occurrence counts in training; numpy linear quantiles at 1/3 and 2/3; bins are <=lower, (lower,upper], >upper",
+        "target_frequency_band_used_for_routing_or_alpha_selection": false,
+        "upper_cutpoint": 9.0
+      },
+      "text_rescue_definition": "Text top-10 hits among ID top-10 misses",
+      "visible_history_length": {
+        "1": {
+          "hit_rate": null,
+          "id_top10_misses": 0,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 0,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "10": {
+          "hit_rate": 0.01639344262295082,
+          "id_top10_misses": 671,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 11,
+          "users": 695,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "11": {
+          "hit_rate": 0.015037593984962405,
+          "id_top10_misses": 532,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 8,
+          "users": 558,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "12": {
+          "hit_rate": 0.0166270783847981,
+          "id_top10_misses": 421,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 7,
+          "users": 439,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "13": {
+          "hit_rate": 0.005747126436781609,
+          "id_top10_misses": 348,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 2,
+          "users": 361,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "14": {
+          "hit_rate": 0.012145748987854251,
+          "id_top10_misses": 247,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 3,
+          "users": 262,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "15": {
+          "hit_rate": 0.015228426395939087,
+          "id_top10_misses": 197,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 3,
+          "users": 207,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "16": {
+          "hit_rate": 0.009950248756218905,
+          "id_top10_misses": 201,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 2,
+          "users": 213,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "17": {
+          "hit_rate": 0.0,
+          "id_top10_misses": 132,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 141,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "18": {
+          "hit_rate": 0.02631578947368421,
+          "id_top10_misses": 114,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 3,
+          "users": 118,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "19": {
+          "hit_rate": 0.017064846416382253,
+          "id_top10_misses": 1172,
+          "is_truncated_bucket": true,
+          "text_hits_among_id_misses": 20,
+          "users": 1248,
+          "visible_history_definition": "19 means 19 or more pre-target events were truncated to the latest 19"
+        },
+        "2": {
+          "hit_rate": null,
+          "id_top10_misses": 0,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 0,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "3": {
+          "hit_rate": null,
+          "id_top10_misses": 0,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 0,
+          "users": 0,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "4": {
+          "hit_rate": 0.043683589138134596,
+          "id_top10_misses": 6776,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 296,
+          "users": 7162,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "5": {
+          "hit_rate": 0.03180565990483346,
+          "id_top10_misses": 3993,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 127,
+          "users": 4221,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "6": {
+          "hit_rate": 0.03371226969815758,
+          "id_top10_misses": 2551,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 86,
+          "users": 2680,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "7": {
+          "hit_rate": 0.02905287623474724,
+          "id_top10_misses": 1721,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 50,
+          "users": 1811,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "8": {
+          "hit_rate": 0.022393822393822392,
+          "id_top10_misses": 1295,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 29,
+          "users": 1366,
+          "visible_history_definition": "exact visible pre-target event count"
+        },
+        "9": {
+          "hit_rate": 0.02237926972909305,
+          "id_top10_misses": 849,
+          "is_truncated_bucket": false,
+          "text_hits_among_id_misses": 19,
+          "users": 881,
+          "visible_history_definition": "exact visible pre-target event count"
+        }
+      }
+    },
+    "ranking_metrics_by_cohort": {
+      "all": {
+        "ID-only": {
+          "hit@1": 0.011671063810758843,
+          "hit@10_count": 1143,
+          "hit@1_count": 261,
+          "ndcg@10": 0.028688038244538666,
+          "users": 22363
+        },
+        "Text-only": {
+          "hit@1": 0.00022358359790725752,
+          "hit@10_count": 924,
+          "hit@1_count": 5,
+          "ndcg@10": 0.01539627621241649,
+          "users": 22363
+        },
+        "equal-alpha-0.5": {
+          "hit@1": 0.004695255556052408,
+          "hit@10_count": 1164,
+          "hit@1_count": 105,
+          "ndcg@10": 0.02427979948837777,
+          "users": 22363
+        },
+        "exploratory-conditional": {
+          "hit@1": 0.008675043598801592,
+          "hit@10_count": 1312,
+          "hit@1_count": 194,
+          "ndcg@10": 0.029954641103613858,
+          "users": 22363
+        },
+        "validation-selected-global": {
+          "hit@1": 0.008675043598801592,
+          "hit@10_count": 1312,
+          "hit@1_count": 194,
+          "ndcg@10": 0.029954641103613858,
+          "users": 22363
+        }
+      },
+      "long": {
+        "ID-only": {
+          "hit@1": 0.01144661535425301,
+          "hit@10_count": 757,
+          "hit@1_count": 174,
+          "ndcg@10": 0.028200035716987343,
+          "users": 15201
+        },
+        "Text-only": {
+          "hit@1": 0.000263140582856391,
+          "hit@10_count": 520,
+          "hit@1_count": 4,
+          "ndcg@10": 0.012787020701208227,
+          "users": 15201
+        },
+        "equal-alpha-0.5": {
+          "hit@1": 0.0040128938885599635,
+          "hit@10_count": 721,
+          "hit@1_count": 61,
+          "ndcg@10": 0.02144189986583924,
+          "users": 15201
+        },
+        "exploratory-conditional": {
+          "hit@1": 0.0071705808828366555,
+          "hit@10_count": 845,
+          "hit@1_count": 109,
+          "ndcg@10": 0.027503257645957367,
+          "users": 15201
+        },
+        "validation-selected-global": {
+          "hit@1": 0.0071705808828366555,
+          "hit@10_count": 845,
+          "hit@1_count": 109,
+          "ndcg@10": 0.027503257645957367,
+          "users": 15201
+        }
+      },
+      "short": {
+        "ID-only": {
+          "hit@1": 0.012147444847807875,
+          "hit@10_count": 386,
+          "hit@1_count": 87,
+          "ndcg@10": 0.02972380010174444,
+          "users": 7162
+        },
+        "Text-only": {
+          "hit@1": 0.00013962580284836637,
+          "hit@10_count": 404,
+          "hit@1_count": 1,
+          "ndcg@10": 0.020934295344764545,
+          "users": 7162
+        },
+        "equal-alpha-0.5": {
+          "hit@1": 0.006143535325328121,
+          "hit@10_count": 443,
+          "hit@1_count": 44,
+          "ndcg@10": 0.03030310473303125,
+          "users": 7162
+        },
+        "exploratory-conditional": {
+          "hit@1": 0.011868193242111143,
+          "hit@10_count": 467,
+          "hit@1_count": 85,
+          "ndcg@10": 0.0351575844071375,
+          "users": 7162
+        },
+        "validation-selected-global": {
+          "hit@1": 0.011868193242111143,
+          "hit@10_count": 467,
+          "hit@1_count": 85,
+          "ndcg@10": 0.0351575844071375,
+          "users": 7162
+        }
+      }
+    },
+    "text_rescue_among_id_misses": {
+      "bootstrap_replicates": 2000,
+      "bootstrap_seed": 20260926,
+      "difference_user_bootstrap_95ci": [
+        0.01248623849141676,
+        0.023519090382943236
+      ],
+      "long": {
+        "cohort_users": 15201,
+        "hit_rate": 0.025616172805317087,
+        "id_top10_misses": 14444,
+        "text_top10_hits_among_id_misses": 370
+      },
+      "short": {
+        "cohort_users": 7162,
+        "hit_rate": 0.043683589138134596,
+        "id_top10_misses": 6776,
+        "text_top10_hits_among_id_misses": 296
+      },
+      "short_minus_long": 0.01806741633281751,
+      "valid_bootstrap_replicates": 2000
+    }
+  },
+  "validation": {
+    "exploratory_conditional_alpha": {
+      "long": {
+        "recall_at_10": 0.06721311475409836,
+        "selected_alpha": 0.9,
+        "users": 10980
+      },
+      "short": {
+        "recall_at_10": 0.08556619520337345,
+        "selected_alpha": 0.9,
+        "users": 11383
+      }
+    },
+    "recall_at_10_by_alpha": {
+      "0.0": {
+        "hits": 1116,
+        "recall@10": 0.04990385905289988,
+        "users": 22363
+      },
+      "0.1": {
+        "hits": 1339,
+        "recall@10": 0.05987568751956356,
+        "users": 22363
+      },
+      "0.2": {
+        "hits": 1372,
+        "recall@10": 0.06135133926575147,
+        "users": 22363
+      },
+      "0.3": {
+        "hits": 1407,
+        "recall@10": 0.06291642445110227,
+        "users": 22363
+      },
+      "0.4": {
+        "hits": 1447,
+        "recall@10": 0.06470509323436033,
+        "users": 22363
+      },
+      "0.5": {
+        "hits": 1476,
+        "recall@10": 0.06600187810222242,
+        "users": 22363
+      },
+      "0.6": {
+        "hits": 1530,
+        "recall@10": 0.0684165809596208,
+        "users": 22363
+      },
+      "0.7": {
+        "hits": 1561,
+        "recall@10": 0.0698027992666458,
+        "users": 22363
+      },
+      "0.8": {
+        "hits": 1627,
+        "recall@10": 0.0727541027590216,
+        "users": 22363
+      },
+      "0.9": {
+        "hits": 1712,
+        "recall@10": 0.07655502392344497,
+        "users": 22363
+      },
+      "1.0": {
+        "hits": 1462,
+        "recall@10": 0.0653758440280821,
+        "users": 22363
+      }
+    },
+    "recall_at_10_by_alpha_by_cohort": {
+      "0.0": {
+        "long": {
+          "hits": 378,
+          "recall@10": 0.03442622950819672,
+          "users": 10980
+        },
+        "short": {
+          "hits": 738,
+          "recall@10": 0.06483352367565669,
+          "users": 11383
+        }
+      },
+      "0.1": {
+        "long": {
+          "hits": 502,
+          "recall@10": 0.045719489981785065,
+          "users": 10980
+        },
+        "short": {
+          "hits": 837,
+          "recall@10": 0.0735307036809277,
+          "users": 11383
+        }
+      },
+      "0.2": {
+        "long": {
+          "hits": 524,
+          "recall@10": 0.04772313296903461,
+          "users": 10980
+        },
+        "short": {
+          "hits": 848,
+          "recall@10": 0.0744970570148467,
+          "users": 11383
+        }
+      },
+      "0.3": {
+        "long": {
+          "hits": 545,
+          "recall@10": 0.04963570127504554,
+          "users": 10980
+        },
+        "short": {
+          "hits": 862,
+          "recall@10": 0.07572696125801634,
+          "users": 11383
+        }
+      },
+      "0.4": {
+        "long": {
+          "hits": 575,
+          "recall@10": 0.052367941712204005,
+          "users": 10980
+        },
+        "short": {
+          "hits": 872,
+          "recall@10": 0.0766054642888518,
+          "users": 11383
+        }
+      },
+      "0.5": {
+        "long": {
+          "hits": 599,
+          "recall@10": 0.054553734061930786,
+          "users": 10980
+        },
+        "short": {
+          "hits": 877,
+          "recall@10": 0.07704471580426953,
+          "users": 11383
+        }
+      },
+      "0.6": {
+        "long": {
+          "hits": 628,
+          "recall@10": 0.057194899817850635,
+          "users": 10980
+        },
+        "short": {
+          "hits": 902,
+          "recall@10": 0.07924097338135816,
+          "users": 11383
+        }
+      },
+      "0.7": {
+        "long": {
+          "hits": 648,
+          "recall@10": 0.05901639344262295,
+          "users": 10980
+        },
+        "short": {
+          "hits": 913,
+          "recall@10": 0.08020732671527717,
+          "users": 11383
+        }
+      },
+      "0.8": {
+        "long": {
+          "hits": 687,
+          "recall@10": 0.06256830601092896,
+          "users": 10980
+        },
+        "short": {
+          "hits": 940,
+          "recall@10": 0.0825792848985329,
+          "users": 11383
+        }
+      },
+      "0.9": {
+        "long": {
+          "hits": 738,
+          "recall@10": 0.06721311475409836,
+          "users": 10980
+        },
+        "short": {
+          "hits": 974,
+          "recall@10": 0.08556619520337345,
+          "users": 11383
+        }
+      },
+      "1.0": {
+        "long": {
+          "hits": 665,
+          "recall@10": 0.06056466302367942,
+          "users": 10980
+        },
+        "short": {
+          "hits": 797,
+          "recall@10": 0.07001669155758587,
+          "users": 11383
+        }
+      }
+    },
+    "selected_alpha": 0.9
+  }
+}

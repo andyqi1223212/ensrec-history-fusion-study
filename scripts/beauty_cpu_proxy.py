@@ -11,6 +11,7 @@ import numpy as np
 import scipy
 import sklearn
 from scipy.sparse import csr_matrix, vstack
+from scipy.stats import rankdata
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 ALPHAS = tuple(round(x / 10, 1) for x in range(11))
@@ -190,15 +191,43 @@ def shuffle_candidate_text(item_text_matrix, n_items: int, seed: int):
     return item_text_matrix[permutation], permutation
 
 
+def eligible_candidates(history: tuple[int, ...], n_items: int,
+                        exclude_visible_history: bool) -> np.ndarray:
+    mask = np.ones(n_items, dtype=bool)
+    if exclude_visible_history:
+        mask[np.asarray(history, dtype=np.int32)] = False
+        if int(mask.sum()) < K:
+            raise ValueError("Visible-history exclusion leaves fewer than K candidates")
+    return mask
+
+
 def rank_percentiles(scores: np.ndarray, item_ids: np.ndarray,
-                     popularity: np.ndarray | None = None) -> np.ndarray:
+                     popularity: np.ndarray | None = None,
+                     tie_policy: str = "item-id",
+                     eligible_mask: np.ndarray | None = None) -> np.ndarray:
+    if tie_policy not in {"item-id", "average"}:
+        raise ValueError(f"Unknown score tie policy: {tie_policy}")
+    if eligible_mask is None:
+        eligible_mask = np.ones(len(scores), dtype=bool)
+    if len(eligible_mask) != len(scores) or not np.any(eligible_mask):
+        raise ValueError("Eligible candidate mask must match scores and be nonempty")
+    eligible = np.flatnonzero(eligible_mask)
+    percentiles = np.full(len(scores), -1.0, dtype=np.float32)
+    if tie_policy == "average":
+        if popularity is not None:
+            raise ValueError("Average-rank tie policy applies only to text scores")
+        if len(eligible) == 1:
+            percentiles[eligible] = 1.0
+        else:
+            average_ranks = rankdata(scores[eligible], method="average")
+            percentiles[eligible] = ((average_ranks - 1.0) / (len(eligible) - 1)).astype(np.float32)
+        return percentiles
     if popularity is None:
-        order = np.lexsort((item_ids, -scores))
+        order = eligible[np.lexsort((item_ids[eligible], -scores[eligible]))]
     else:
         # Primary: transition score; tie-break: training popularity; then item ID.
-        order = np.lexsort((item_ids, -popularity, -scores))
-    percentiles = np.empty(len(scores), dtype=np.float32)
-    percentiles[order] = np.linspace(1.0, 0.0, len(scores), dtype=np.float32)
+        order = eligible[np.lexsort((item_ids[eligible], -popularity[eligible], -scores[eligible]))]
+    percentiles[order] = np.linspace(1.0, 0.0, len(order), dtype=np.float32)
     return percentiles
 
 
@@ -229,7 +258,8 @@ def target_rank(scores: np.ndarray, target_id: int, item_ids: np.ndarray) -> int
 def predict_hits(examples: list[tuple[int, tuple[int, ...], int]], item_text_matrix,
                  transitions, popularity, alphas: tuple[float, ...],
                  candidate_matrices: dict | None = None,
-                 batch_size: int = 128) -> dict:
+                 batch_size: int = 128, text_tie_policy: str = "item-id",
+                 exclude_visible_history: bool = False) -> dict:
     n_items = item_text_matrix.shape[0]
     item_ids = np.arange(n_items, dtype=np.int32)
     candidate_matrices = candidate_matrices or {"aligned": item_text_matrix}
@@ -252,14 +282,16 @@ def predict_hits(examples: list[tuple[int, tuple[int, ...], int]], item_text_mat
         }
         for local, index in enumerate(range(start, end)):
             _, history, target = examples[index]
+            eligible = eligible_candidates(history, n_items, exclude_visible_history)
             score_id = id_scores(history, transitions, popularity)
-            id_pct = rank_percentiles(score_id, item_ids, popularity)
+            id_pct = rank_percentiles(score_id, item_ids, popularity, eligible_mask=eligible)
             id_top = topk_indices(id_pct, item_ids)
             id_hits[index] = target in id_top
             id_ranks[index] = target_rank(id_pct, target, item_ids)
             for name, sim in similarities.items():
                 row = sim.getrow(local).toarray().reshape(-1)
-                text_pct = rank_percentiles(row, item_ids)
+                text_pct = rank_percentiles(row, item_ids, tie_policy=text_tie_policy,
+                                            eligible_mask=eligible)
                 variants[name]["text"][index] = target in topk_indices(text_pct, item_ids)
                 variants[name]["text_rank"][index] = target_rank(text_pct, target, item_ids)
                 for alpha in alphas:
@@ -458,7 +490,9 @@ def bootstrap_rescue_difference(id_hits: np.ndarray, text_hits: np.ndarray,
 
 
 def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
-            event_diagnostics_path: Path | None = None) -> dict:
+            event_diagnostics_path: Path | None = None,
+            text_tie_policy: str = "item-id",
+            exclude_visible_history: bool = False) -> dict:
     n_items = len(data["catalog"])
     catalog_texts = align_catalog(data["catalog"], n_items)
     data_audit = validate_splits({s: data[s] for s in ("training", "evaluation", "testing")}, n_items)
@@ -466,11 +500,20 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
     vectorizer, text_matrix = build_tfidf(catalog_texts)
     validation_examples = examples_for_split(data["evaluation"])
     test_examples = examples_for_split(data["testing"])
+    def eligible_summary(examples):
+        counts = [len(set(history)) for _, history, _ in examples]
+        if not exclude_visible_history:
+            counts = [0] * len(examples)
+        available = [n_items - count for count in counts]
+        return {"minimum": int(min(available)), "maximum": int(max(available)),
+                "mean": float(np.mean(available))}
     validation_lengths = np.asarray([len(h) for _, h, _ in validation_examples], dtype=np.int32)
     test_lengths = np.asarray([len(h) for _, h, _ in test_examples], dtype=np.int32)
     cutoff, val_short_count = choose_validation_cutoff(validation_lengths)
 
-    val_bundle = predict_hits(validation_examples, text_matrix, transitions, popularity, ALPHAS)
+    val_bundle = predict_hits(validation_examples, text_matrix, transitions, popularity, ALPHAS,
+                              text_tie_policy=text_tie_policy,
+                              exclude_visible_history=exclude_visible_history)
     val_result = val_bundle["variants"]["aligned"]
     selected_alpha = select_validation_alpha(val_result["fusion"])
     val_short = validation_lengths <= cutoff
@@ -487,7 +530,9 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
     control_matrix, _ = shuffle_candidate_text(text_matrix, n_items, NEGATIVE_CONTROL_SEED)
     test_bundle = predict_hits(test_examples, text_matrix, transitions, popularity, test_weights,
                                candidate_matrices={"aligned": text_matrix,
-                                                   "candidate_text_permuted": control_matrix})
+                                                   "candidate_text_permuted": control_matrix},
+                               text_tie_policy=text_tie_policy,
+                               exclude_visible_history=exclude_visible_history)
     test_result = test_bundle["variants"]["aligned"]
     control_result = test_bundle["variants"]["candidate_text_permuted"]
     test_id_hits = test_bundle["id"]
@@ -544,6 +589,9 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
     frequency_bands, frequency_band_info = training_frequency_bands(popularity)
     targets = np.asarray([target for _, _, target in test_examples], dtype=np.int32)
     target_frequencies = popularity[targets]
+    target_seen_in_visible_history = np.asarray([
+        target in history for _, history, target in test_examples
+    ], dtype=bool)
     frequency_diagnostics = {}
     for name, band_mask in frequency_bands.items():
         short_counts = _rescue_counts(test_id_hits, test_result["text"], band_mask[targets] & test_short)
@@ -586,13 +634,23 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
                     "scipy": scipy.__version__, "scikit_learn": sklearn.__version__},
         "protocol": {
             "candidate_count": n_items, "candidate_sequence_ids": "0..N-1",
+            "candidate_count_scope": "catalog inventory size; per-query eligible count may be smaller when visible-history exclusion is enabled",
+            "eligible_candidate_counts": {"validation": eligible_summary(validation_examples),
+                                           "test": eligible_summary(test_examples)},
             "catalog_metadata_ids": "1..N; candidate_index=metadata_id-1",
             "target": "last item in evaluation/testing record; exactly one target per user",
             "visible_history": "sequence[-20:-1], maximum 19 events; target excluded",
             "id_model": "train-only item-to-next-item conditional transition probabilities averaged over available sources in the latest 19 history items; fixed 0.1 train-popularity backoff; when no source has transitions use popularity alone",
             "id_tiebreak": "train-only item popularity descending, then candidate ID ascending",
             "text_model": "catalog-only scikit-learn TfidfVectorizer: lowercase, unicode accent stripping, sublinear TF, smooth IDF, L2 normalization, min_df=2, max_df=0.85; query is normalized sum of visible-history item vectors",
-            "fusion": "deterministic per-query candidate rank percentiles, higher is better; score ties broken by candidate ID; alpha*ID_percentile + (1-alpha)*Text_percentile",
+            "fusion": "alpha*ID_percentile + (1-alpha)*Text_percentile; final fused-score ties break by candidate ID; Text percentile tie handling is controlled by text_percentile_tie_policy",
+            "text_percentile_tie_policy": text_tie_policy,
+            "exclude_visible_history_candidates": exclude_visible_history,
+            "evaluation_test_events_retained": {"validation": len(validation_examples), "test": len(test_examples)},
+            "repeat_targets_in_visible_history": {
+                "validation": int(sum(target in history for _, history, target in validation_examples)),
+                "test": int(target_seen_in_visible_history.sum()),
+            },
             "alpha_grid": list(ALPHAS), "selected_alpha_is_id_weight": True,
             "validation_cutoff": cutoff, "short_rule": "visible history length <= validation median cutoff",
             "target_frequency_diagnostic": "post hoc only; bands use training catalog event-frequency tertile cutpoints and do not route prediction",
@@ -623,7 +681,7 @@ def analyze(data: dict, bootstrap_replicates: int = BOOTSTRAP_REPLICATES,
         "test": {"metrics_by_cohort": metrics, "ranking_metrics_by_cohort": rank_metrics,
                  "fusion_added_lost_net_hits": gains,
                  "exploratory_conditional_fusion": conditional_comparisons,
-                 "posthoc_alternative_explanations": {
+                "posthoc_alternative_explanations": {
                      "target_item_training_frequency_tertiles": {
                          **frequency_band_info, "bands": frequency_diagnostics,
                          "difference_definition": "short text-rescue rate minus long text-rescue rate; null if either ID-miss denominator is empty",
@@ -647,46 +705,56 @@ def write_svg(report: dict, path: Path):
     methods = ["ID-only", "Text-only", "equal-alpha-0.5", "validation-selected-global"]
     colors = ["#52647a", "#bd6b43", "#2b8a78", "#7556a5"]
     W, H = 1000, 570
+    protocol = report.get("protocol", {})
+    tie_policy = protocol.get("text_percentile_tie_policy", "item-id")
+    excluded = protocol.get("exclude_visible_history_candidates", False)
+    tie_label = {"item-id": "按商品ID", "average": "平均排名"}.get(tie_policy, tie_policy)
+    available = protocol.get("eligible_candidate_counts", {}).get("test", {})
+    availability_label = (f"test每query有效候选 {available.get('minimum', '?')}–{available.get('maximum', '?')} 项"
+                          if excluded else "全目录候选")
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
              '<rect width="100%" height="100%" fill="#fff"/>',
-             '<style>text{font-family:Arial,sans-serif;fill:#263238}.title{font-size:22px;font-weight:bold}.head{font-size:16px;font-weight:bold}.label{font-size:13px}.small{font-size:11px}</style>',
-             '<text x="40" y="36" class="title">Beauty CPU proxy: next-item hit rates</text>',
-             '<text x="40" y="59" class="small">Full 12,101-item catalog · rank-percentile fusion · not EnsRec training</text>']
+             '<style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif;fill:#263238}.title{font-size:22px;font-weight:bold}.head{font-size:16px;font-weight:bold}.label{font-size:13px}.small{font-size:11px}</style>',
+             '<text x="40" y="36" class="title">Beauty CPU代理：下一商品命中率</text>',
+             f'<text x="40" y="59" class="small">目录 {protocol.get("candidate_count", 12101):,} 项 · {availability_label} · 文本同分处理：{tie_label} · 可见历史候选排除：{"是" if excluded else "否"} · 非EnsRec训练</text>']
     # Panel 1: test Recall@10 by method.
     x0, y0, chart_w, chart_h = 68, 105, 570, 165
-    parts.append(f'<text x="{x0}" y="87" class="head">Test Recall@10</text>')
+    parts.append(f'<text x="{x0}" y="87" class="head">测试集 Recall@10</text>')
+    all_metrics = test["metrics_by_cohort"]["all"]
+    recall_max = max(0.10, float(np.ceil(max(all_metrics[m]["recall@10"] for m in methods) * 1.15 / 0.02) * 0.02))
     for tick in range(0, 6):
         y = y0 + chart_h - tick * chart_h / 5
         parts.append(f'<line x1="{x0}" y1="{y:.1f}" x2="{x0+chart_w}" y2="{y:.1f}" stroke="#e2e7eb"/>')
-        parts.append(f'<text x="{x0-10}" y="{y+4:.1f}" text-anchor="end" class="small">{tick*2}%</text>')
+        parts.append(f'<text x="{x0-10}" y="{y+4:.1f}" text-anchor="end" class="small">{tick*recall_max/5:.0%}</text>')
     gap, bw = 22, 82
     for i, method in enumerate(methods):
         value = test["metrics_by_cohort"]["all"][method]["recall@10"]
         x = x0 + 28 + i * (bw + gap)
-        bar_h = chart_h * value / 0.10
+        bar_h = chart_h * value / recall_max
         y = y0 + chart_h - bar_h
         parts.append(f'<rect x="{x}" y="{y:.1f}" width="{bw}" height="{bar_h:.1f}" rx="4" fill="{colors[i]}"/>')
         parts.append(f'<text x="{x+bw/2}" y="{y-7:.1f}" text-anchor="middle" class="small">{_percent(value)}</text>')
-        short_label = {"ID-only": "ID", "Text-only": "Text", "equal-alpha-0.5": "Equal",
-                       "validation-selected-global": f"Val-selected α={report['validation']['selected_alpha']}"}[method]
+        short_label = {"ID-only": "ID", "Text-only": "Text", "equal-alpha-0.5": "等权",
+                       "validation-selected-global": f"全局α={report['validation']['selected_alpha']}"}[method]
         parts.append(f'<text x="{x+bw/2}" y="{y0+chart_h+18}" text-anchor="middle" class="small">{short_label}</text>')
     # Panel 2: text rescue among ID misses by test cohort with bootstrap intervals.
     x1, y1, w1, h1 = 700, 105, 240, 165
-    parts.append(f'<text x="{x1}" y="87" class="head">Text hit rate on ID misses</text>')
+    parts.append(f'<text x="{x1}" y="87" class="head">ID未命中时Text命中率</text>')
     rescue = test["text_rescue_among_id_misses"]
+    rescue_max = max(0.10, float(np.ceil(max(rescue[name]["hit_rate"] or 0.0 for name in ("short", "long")) * 1.15 / 0.02) * 0.02))
     for i, name in enumerate(("short", "long")):
         row = rescue[name]
         value = row["hit_rate"] or 0.0
         x = x1 + 22 + i * 112
-        bar_h = h1 * value / 0.10
+        bar_h = h1 * value / rescue_max
         y = y1 + h1 - bar_h
         parts.append(f'<rect x="{x}" y="{y:.1f}" width="70" height="{bar_h:.1f}" rx="4" fill="{colors[1]}"/>')
         parts.append(f'<text x="{x+35}" y="{y-7:.1f}" text-anchor="middle" class="small">{_percent(row["hit_rate"])}</text>')
-        parts.append(f'<text x="{x+35}" y="{y1+h1+18}" text-anchor="middle" class="small">{name.title()}</text>')
-        parts.append(f'<text x="{x+35}" y="{y1+h1+35}" text-anchor="middle" class="small">users={row["cohort_users"]}</text>')
-        parts.append(f'<text x="{x+35}" y="{y1+h1+51}" text-anchor="middle" class="small">misses={row["id_top10_misses"]}</text>')
+        parts.append(f'<text x="{x+35}" y="{y1+h1+18}" text-anchor="middle" class="small">{ "短历史" if name == "short" else "长历史" }</text>')
+        parts.append(f'<text x="{x+35}" y="{y1+h1+35}" text-anchor="middle" class="small">用户 {row["cohort_users"]}</text>')
+        parts.append(f'<text x="{x+35}" y="{y1+h1+51}" text-anchor="middle" class="small">ID未命中 {row["id_top10_misses"]}</text>')
     # Lower table shows the key contrast, gains, and a semantic alignment control.
-    parts.append('<text x="40" y="340" class="head">Complementarity and controls</text>')
+    parts.append('<text x="40" y="340" class="head">互补性与对照</text>')
     diff = rescue["short_minus_long"]
     ci = rescue["difference_user_bootstrap_95ci"]
     diff_ci = "n/a" if diff is None else f"{100*diff:+.2f} pp (95% CI {100*ci[0]:+.2f} to {100*ci[1]:+.2f} pp)"
@@ -695,18 +763,18 @@ def write_svg(report: dict, path: Path):
     control_equal = test["candidate_text_permutation_control"]["equal-alpha-0.5"]["all"]["recall@10"]
     recovered = test["equal_fusion_recovery_of_text_only_hits"]["all"]
     lines = [
-        f"Short − long Text rescue rate: {diff_ci}",
-        f"Equal fusion added/lost/net hits vs ID: {equal_gain['added_hits']} / {equal_gain['lost_hits']} / {equal_gain['net_hits']:+d}",
-        f"Validation-weighted fusion net hits vs ID: {global_gain['net_hits']:+d}",
-        f"Shuffled candidate-text equal-fusion Recall@10 (alignment negative control): {_percent(control_equal)}",
-        f"Equal fusion retained text-only hits: {recovered['recovered_by_equal']}/{recovered['text_only_hits']} ({_percent(recovered['recovery_rate'])})",
+        f"短减长 Text补救率：{diff_ci}",
+        f"等权相对ID新增/丢失/净命中：{equal_gain['added_hits']} / {equal_gain['lost_hits']} / {equal_gain['net_hits']:+d}",
+        f"验证集选择权重相对ID净增命中：{global_gain['net_hits']:+d}",
+        f"候选侧文本置乱后等权Recall@10（对齐负控）：{_percent(control_equal)}",
+        f"等权保留Text独有命中：{recovered['recovered_by_equal']}/{recovered['text_only_hits']} ({_percent(recovered['recovery_rate'])})",
     ]
     for i, line in enumerate(lines):
         y = 376 + i * 34
         parts.append(f'<text x="48" y="{y}" class="label">{line}</text>')
         if i < len(lines) - 1:
             parts.append(f'<line x1="48" y1="{y+12}" x2="950" y2="{y+12}" stroke="#edf0f2"/>')
-    parts.append('<text x="40" y="535" class="small">Scores are aggregate proxy results. Candidate-side text is shuffled only for the negative control; no user-level rows are included.</text>')
+    parts.append('<text x="40" y="535" class="small">仅展示聚合代理结果；文本置乱只用于负控，不含逐用户记录。</text>')
     parts.append('</svg>')
     path.write_text("\n".join(parts), encoding="utf-8")
 
@@ -720,6 +788,10 @@ def main() -> int:
     parser.add_argument("--bootstrap-replicates", type=int, default=BOOTSTRAP_REPLICATES)
     parser.add_argument("--write-event-diagnostics", action="store_true",
                         help="Write private per-test-event JSONL into --output-dir (not for publication)")
+    parser.add_argument("--text-tie-policy", choices=("item-id", "average"), default="item-id",
+                        help="How tied Text similarities share candidate percentiles (default: item-id)")
+    parser.add_argument("--exclude-visible-history", action="store_true",
+                        help="Exclude each query's visible history items from every method's candidate set")
     args = parser.parse_args()
     if bool(args.data_dir) == bool(args.prepared_json):
         parser.error("Specify exactly one of --data-dir or --prepared-json")
@@ -728,13 +800,17 @@ def main() -> int:
     data = load_tfrecords(args.data_dir) if args.data_dir else load_prepared_json(args.prepared_json)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     event_path = args.output_dir / "beauty-cpu-proxy.event-diagnostics.jsonl" if args.write_event_diagnostics else None
-    report = analyze(data, args.bootstrap_replicates, event_path)
+    report = analyze(data, args.bootstrap_replicates, event_path,
+                     text_tie_policy=args.text_tie_policy,
+                     exclude_visible_history=args.exclude_visible_history)
     json_path = args.output_dir / "beauty-cpu-proxy-results.json"
     svg_path = args.output_dir / "beauty-cpu-proxy-summary.svg"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     write_svg(report, svg_path)
     print(json.dumps({"results": str(json_path), "chart": str(svg_path),
                       "event_diagnostics": str(event_path) if event_path else None,
+                      "text_tie_policy": args.text_tie_policy,
+                      "exclude_visible_history": args.exclude_visible_history,
                       "selected_alpha": report["validation"]["selected_alpha"],
                       "test_primary": report["test"]["text_rescue_among_id_misses"]}, indent=2))
     return 0

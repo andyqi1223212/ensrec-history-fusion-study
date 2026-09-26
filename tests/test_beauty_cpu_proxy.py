@@ -12,16 +12,17 @@ from scripts.beauty_cpu_proxy import (
     _ranking_metric,
     _rescue_counts,
     _write_event_diagnostics,
+    eligible_candidates,
     align_catalog,
     analyze,
     bootstrap_rescue_difference,
     fit_id_model,
-    rank_percentiles,
     route_cohort_hits,
     select_validation_alpha_by_cohort,
     shuffle_candidate_text,
     topk_indices,
     target_rank,
+    rank_percentiles,
     training_frequency_bands,
     validate_splits,
     visible_history_target,
@@ -99,6 +100,34 @@ class BeautyCpuProxyTests(unittest.TestCase):
         empty = _rescue_counts(id_hits, text_hits, np.array([True]))
         self.assertIsNone(empty["hit_rate"])
         self.assertIsNone(_difference_rate(empty, empty))
+
+    def test_average_text_ties_share_midrank_and_candidate_mask_excludes_rows(self):
+        ids = np.arange(4)
+        scores = np.array([4.0, 1.0, 1.0, 0.0])
+        average = rank_percentiles(scores, ids, tie_policy="average")
+        np.testing.assert_allclose(average, [1.0, 0.5, 0.5, 0.0])
+        eligible = np.array([True, False, True, True])
+        masked = rank_percentiles(scores, ids, eligible_mask=eligible)
+        np.testing.assert_allclose(masked, [1.0, -1.0, 0.5, 0.0])
+
+    def test_candidate_filter_allows_exactly_k_candidates(self):
+        self.assertEqual(int(eligible_candidates((0,), 11, True).sum()), 10)
+        with self.assertRaisesRegex(ValueError, "fewer than K"):
+            eligible_candidates((0,), 10, True)
+
+    def test_visible_candidate_exclusion_keeps_events_and_counts_repeated_targets_as_misses(self):
+        data = toy_data()
+        data["testing"] = {
+            user: sequence + (sequence[-1],)
+            for user, sequence in data["evaluation"].items()
+        }
+        report = analyze(data, bootstrap_replicates=100, exclude_visible_history=True)
+        self.assertTrue(report["protocol"]["exclude_visible_history_candidates"])
+        self.assertEqual(report["protocol"]["evaluation_test_events_retained"]["test"], 8)
+        self.assertEqual(report["protocol"]["repeat_targets_in_visible_history"]["test"], 8)
+        for method in ("ID-only", "Text-only", "equal-alpha-0.5", "validation-selected-global"):
+            self.assertEqual(report["test"]["metrics_by_cohort"]["all"][method]["users"], 8)
+            self.assertEqual(report["test"]["ranking_metrics_by_cohort"]["all"][method]["hit@10_count"], 0)
 
     def test_optional_event_jsonl_has_no_raw_sequences_and_uses_zero_outside_top10(self):
         examples = [(7, (1, 2, 3), 4)]
@@ -208,7 +237,7 @@ class BeautyCpuProxyTests(unittest.TestCase):
             path = Path(temp_dir) / "summary.svg"
             write_svg(report, path)
             svg = path.read_text(encoding="utf-8")
-            self.assertIn("Short − long Text rescue rate", svg)
+            self.assertIn("短减长 Text补救率", svg)
             self.assertIn('y="410"', svg)
             self.assertIn('y="444"', svg)
 
