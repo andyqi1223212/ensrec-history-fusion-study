@@ -1,0 +1,202 @@
+{
+  "scope": "Post hoc potential mechanism diagnostic; aggregate metrics only",
+  "protocol": {
+    "catalog_items": 12101,
+    "visible_history": "visible_history_target(sequence): latest at most 19 events before target",
+    "full_pre_target_history": "all events before target in the record",
+    "text_profile": "normalized sum of visible-history item TF-IDF vectors; all catalog items remain candidates",
+    "text_ranking": "cosine similarity descending; item ID ascending for ties; top 10",
+    "cohort_cutoff_source": "validation visible-history length median only",
+    "validation_cutoff": 4,
+    "short_rule": "visible history length <= validation median cutoff",
+    "causal_claim": false
+  },
+  "validation": {
+    "all": {
+      "users": 22363,
+      "target_in_visible_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "target_in_full_pre_target_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "text_top1_is_visible_seen_item": {
+        "count": 21148,
+        "rate": 0.9456691857085364
+      },
+      "text_top10_visible_seen_slots": {
+        "mean_count": 3.91620086750436,
+        "mean_fraction": 0.39162008675043597
+      },
+      "text_top10_remaining_unseen_slots": {
+        "mean_count": 6.08379913249564
+      },
+      "text_target_hits": {
+        "count": 1116,
+        "recall_at_10": 0.04990385905289988
+      }
+    },
+    "short": {
+      "users": 11383,
+      "target_in_visible_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "target_in_full_pre_target_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "text_top1_is_visible_seen_item": {
+        "count": 11199,
+        "rate": 0.9838355442326276
+      },
+      "text_top10_visible_seen_slots": {
+        "mean_count": 3.2016164455767373,
+        "mean_fraction": 0.3201616445576737
+      },
+      "text_top10_remaining_unseen_slots": {
+        "mean_count": 6.798383554423262
+      },
+      "text_target_hits": {
+        "count": 738,
+        "recall_at_10": 0.06483352367565669
+      }
+    },
+    "long": {
+      "users": 10980,
+      "target_in_visible_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "target_in_full_pre_target_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "text_top1_is_visible_seen_item": {
+        "count": 9949,
+        "rate": 0.9061020036429872
+      },
+      "text_top10_visible_seen_slots": {
+        "mean_count": 4.657012750455373,
+        "mean_fraction": 0.4657012750455373
+      },
+      "text_top10_remaining_unseen_slots": {
+        "mean_count": 5.342987249544627
+      },
+      "text_target_hits": {
+        "count": 378,
+        "recall_at_10": 0.03442622950819672
+      }
+    }
+  },
+  "test": {
+    "all": {
+      "users": 22363,
+      "target_in_visible_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "target_in_full_pre_target_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "text_top1_is_visible_seen_item": {
+        "count": 20817,
+        "rate": 0.930867951527076
+      },
+      "text_top10_visible_seen_slots": {
+        "mean_count": 4.327862987971202,
+        "mean_fraction": 0.4327862987971202
+      },
+      "text_top10_remaining_unseen_slots": {
+        "mean_count": 5.672137012028798
+      },
+      "text_target_hits": {
+        "count": 924,
+        "recall_at_10": 0.04131824889326119
+      }
+    },
+    "short": {
+      "users": 7162,
+      "target_in_visible_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "target_in_full_pre_target_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "text_top1_is_visible_seen_item": {
+        "count": 6960,
+        "rate": 0.9717955878246299
+      },
+      "text_top10_visible_seen_slots": {
+        "mean_count": 3.671879363306339,
+        "mean_fraction": 0.3671879363306339
+      },
+      "text_top10_remaining_unseen_slots": {
+        "mean_count": 6.3281206366936615
+      },
+      "text_target_hits": {
+        "count": 404,
+        "recall_at_10": 0.05640882435074002
+      }
+    },
+    "long": {
+      "users": 15201,
+      "target_in_visible_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "target_in_full_pre_target_history": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "text_top1_is_visible_seen_item": {
+        "count": 13857,
+        "rate": 0.9115847641602526
+      },
+      "text_top10_visible_seen_slots": {
+        "mean_count": 4.636931780803894,
+        "mean_fraction": 0.4636931780803894
+      },
+      "text_top10_remaining_unseen_slots": {
+        "mean_count": 5.363068219196106
+      },
+      "text_target_hits": {
+        "count": 520,
+        "recall_at_10": 0.034208275771330836
+      }
+    }
+  },
+  "parity_check": {
+    "expected_test_text_hits": {
+      "all": 924,
+      "short": 404,
+      "long": 520
+    },
+    "passed": true
+  },
+  "data_audit": {
+    "users": 22363,
+    "sequence_lengths": {
+      "training": {
+        "minimum": 3,
+        "maximum": 202,
+        "mean": 6.8764
+      },
+      "evaluation": {
+        "minimum": 4,
+        "maximum": 203,
+        "mean": 7.8764
+      },
+      "testing": {
+        "minimum": 5,
+        "maximum": 204,
+        "mean": 8.8764
+      }
+    }
+  }
+}
